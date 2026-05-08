@@ -1,0 +1,16 @@
+[Unit]
+Description=Gunicorn for supply_chain_site
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/supply_chain_realistic
+Environment="PATH=/var/www/supply_chain_realistic/venv/bin"
+ExecStart=/var/www/supply_chain_realistic/venv/bin/gunicorn \
+    --workers 3 \
+    --bind unix:/var/www/supply_chain_realistic/gunicorn.sock \
+    supply_chain_site.wsgi:application
+
+[Install]
+WantedBy=multi-user.target

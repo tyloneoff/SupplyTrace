@@ -1,0 +1,25 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Цепочка поставок{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'chain/style.css' %}">
+</head>
+<body>
+<header class="topbar">
+    <div class="container topbar-inner">
+        <a class="logo" href="{% url 'index' %}">Supply Chain PoC</a>
+        <nav>
+            <a href="{% url 'index' %}">Поиск</a>
+            <a href="{% url 'history' %}">История</a>
+        </nav>
+    </div>
+</header>
+
+<main class="container">
+    {% block content %}{% endblock %}
+</main>
+</body>
+</html>

@@ -1,0 +1,25 @@
+{% extends 'chain/base.html' %}
+{% block title %}Компания не найдена{% endblock %}
+
+{% block content %}
+<section class="card">
+    <h1>Компания не найдена</h1>
+
+    <p>Не удалось найти компанию с ИНН: <b>{{ inn }}</b></p>
+
+    <p>Возможные причины:</p>
+    <ul>
+        <li>компания ещё не добавлена в локальную базу;</li>
+        <li>в файле <code>.env</code> не указан <code>DADATA_TOKEN</code>;</li>
+        <li>сервер Django не был перезапущен после изменения <code>.env</code>;</li>
+        <li>ИНН введён неверно.</li>
+    </ul>
+
+    <p>
+        Для PoC можно загрузить демонстрационные контракты через CSV-команду
+        <code>import_contracts_csv</code>.
+    </p>
+
+    <a class="button-secondary" href="{% url 'index' %}">Вернуться на главную</a>
+</section>
+{% endblock %}

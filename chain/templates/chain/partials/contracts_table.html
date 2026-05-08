@@ -1,0 +1,36 @@
+{% if contracts %}
+<table>
+    <thead>
+    <tr>
+        <th>Дата</th>
+        <th>Номер</th>
+        <th>Предмет</th>
+        <th>Заказчик</th>
+        <th>Поставщик</th>
+        <th>Сумма</th>
+        <th>Ссылка</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for contract in contracts %}
+        <tr>
+            <td>{{ contract.date|date:'d.m.Y' }}</td>
+            <td>{{ contract.number }}</td>
+            <td>{{ contract.title|default:'—' }}</td>
+            <td>{{ contract.customer.name }}<br><small>{{ contract.customer.inn }}</small></td>
+            <td>{{ contract.supplier.name }}<br><small>{{ contract.supplier.inn }}</small></td>
+            <td>{{ contract.price }}</td>
+            <td>
+                {% if contract.purchase_url %}
+                    <a href="{{ contract.purchase_url }}" target="_blank">Открыть</a>
+                {% else %}
+                    —
+                {% endif %}
+            </td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>Контракты не найдены.</p>
+{% endif %}

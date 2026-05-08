@@ -1,0 +1,32 @@
+{% extends 'chain/base.html' %}
+{% block title %}Поиск по ИНН{% endblock %}
+
+{% block content %}
+<section class="hero">
+    <h1>Анализ цепочек поставок</h1>
+    <p>Введите ИНН компании. Сервис покажет карточку, контракты, контрагентов и граф связей.</p>
+
+    <form method="post" class="search-form">
+        {% csrf_token %}
+        {{ form.inn.label_tag }}
+        {{ form.inn }}
+        {% if form.inn.errors %}
+            <div class="error">{{ form.inn.errors }}</div>
+        {% endif %}
+        <button type="submit">Найти</button>
+    </form>
+</section>
+
+<section class="card">
+    <h2>Последние поиски</h2>
+    {% if recent_searches %}
+        <ul>
+            {% for item in recent_searches %}
+                <li><a href="{% url 'company_detail' item.inn %}">{{ item.inn }}</a> — {{ item.created_at|date:'d.m.Y H:i' }}</li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p>История пока пустая.</p>
+    {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,28 @@
+{% extends 'chain/base.html' %}
+{% block title %}История поисков{% endblock %}
+
+{% block content %}
+<section class="card">
+    <h1>История поисков</h1>
+    {% if searches %}
+        <table>
+            <thead>
+            <tr>
+                <th>ИНН</th>
+                <th>Дата</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for item in searches %}
+                <tr>
+                    <td><a href="{% url 'company_detail' item.inn %}">{{ item.inn }}</a></td>
+                    <td>{{ item.created_at|date:'d.m.Y H:i' }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>История пока пустая.</p>
+    {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,88 @@
+{% extends 'chain/base.html' %}
+{% load static %}
+
+{% block title %}{{ company.name }}{% endblock %}
+
+{% block content %}
+<section class="card company-card">
+    <h1>{{ company.name }}</h1>
+
+    <p><b>ИНН:</b> {{ company.inn }}</p>
+
+    {% if company.kpp %}
+        <p><b>КПП:</b> {{ company.kpp }}</p>
+    {% endif %}
+
+    {% if company.ogrn %}
+        <p><b>ОГРН:</b> {{ company.ogrn }}</p>
+    {% endif %}
+
+    <a class="button-secondary" href="{% url 'report' company.inn %}">
+        Открыть HTML-отчёт
+    </a>
+</section>
+
+<section class="card">
+    <h2>Граф цепочки</h2>
+
+    {% if contracts %}
+        {% if graph_data.total_count %}
+            <p>
+                Показаны топ-{{ graph_data.shown_count }} контрагентов
+                из {{ graph_data.total_count }} по количеству и сумме контрактов.
+                Полный список доступен в таблице ниже.
+            </p>
+        {% endif %}
+
+        <div id="graph"></div>
+
+        {{ graph_data|json_script:'graph-data' }}
+
+        <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+        <script src="{% static 'chain/graph.js' %}"></script>
+    {% else %}
+        <p>
+            Контракты за последний год не найдены.
+            Проверь, что данные были импортированы.
+        </p>
+    {% endif %}
+</section>
+
+<section class="card">
+    <h2>Частота участия контрагентов</h2>
+
+    {% if stats %}
+        <table>
+            <thead>
+            <tr>
+                <th>Контрагент</th>
+                <th>ИНН</th>
+                <th>Роль</th>
+                <th>Кол-во контрактов</th>
+                <th>Сумма</th>
+            </tr>
+            </thead>
+
+            <tbody>
+            {% for item in stats %}
+                <tr>
+                    <td>{{ item.company.name }}</td>
+                    <td>{{ item.company.inn }}</td>
+                    <td>{{ item.role }}</td>
+                    <td>{{ item.count }}</td>
+                    <td>{{ item.total_price }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>Нет данных для статистики.</p>
+    {% endif %}
+</section>
+
+<section class="card">
+    <h2>Контракты за последний год</h2>
+
+    {% include 'chain/partials/contracts_table.html' with contracts=contracts %}
+</section>
+{% endblock %}

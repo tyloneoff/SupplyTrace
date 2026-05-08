@@ -1,0 +1,49 @@
+{% extends 'chain/base.html' %}
+{% load static %}
+{% block title %}HTML-отчёт — {{ company.name }}{% endblock %}
+
+{% block content %}
+<section class="report-header">
+    <h1>HTML-отчёт по компании</h1>
+    <p>Компания: <b>{{ company.name }}</b></p>
+    <p>ИНН: <b>{{ company.inn }}</b></p>
+</section>
+
+<section class="card">
+    <h2>Реквизиты</h2>
+    <p><b>Название:</b> {{ company.name }}</p>
+    <p><b>ИНН:</b> {{ company.inn }}</p>
+    <p><b>КПП:</b> {{ company.kpp|default:'—' }}</p>
+    <p><b>ОГРН:</b> {{ company.ogrn|default:'—' }}</p>
+</section>
+
+<section class="card">
+    <h2>Граф цепочки</h2>
+    {% if contracts %}
+        <div id="graph"></div>
+        {{ graph_data|json_script:'graph-data' }}
+        <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+        <script src="{% static 'chain/graph.js' %}"></script>
+    {% else %}
+        <p>Нет данных для построения графа.</p>
+    {% endif %}
+</section>
+
+<section class="card">
+    <h2>Частые контрагенты</h2>
+    {% if stats %}
+        <ol>
+            {% for item in stats %}
+                <li>{{ item.company.name }} — {{ item.count }} контракт(ов), сумма {{ item.total_price }}</li>
+            {% endfor %}
+        </ol>
+    {% else %}
+        <p>Нет данных.</p>
+    {% endif %}
+</section>
+
+<section class="card">
+    <h2>Контракты</h2>
+    {% include 'chain/partials/contracts_table.html' with contracts=contracts %}
+</section>
+{% endblock %}

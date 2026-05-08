@@ -1,0 +1,16 @@
+server {
+    listen 80;
+    server_name example.com www.example.com;
+
+    location /static/ {
+        alias /var/www/supply_chain_realistic/staticfiles/;
+    }
+
+    location / {
+        proxy_pass http://unix:/var/www/supply_chain_realistic/gunicorn.sock;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
