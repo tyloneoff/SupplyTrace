@@ -47,16 +47,31 @@ copy .env.example .env
 Copy-Item .env.example .env
 ```
 
+По умолчанию приложение само обновляет контракты из ЕИС при открытии карточки компании.
+Настройки парсера можно изменить в `.env`:
+
+```env
+ZAKUPKI_SYNC_ENABLED=True
+ZAKUPKI_CONTRACTS_LIMIT=100
+ZAKUPKI_TIMEOUT=25
+```
+
 ### 5. Применить миграции базы данных
 
 ```cmd
 .\.venv\Scripts\python.exe manage.py migrate
 ```
 
-### 6. Импортировать демонстрационные контракты
+### 6. Импортировать демонстрационные контракты, если нужен офлайн-режим
 
 ```cmd
 .\.venv\Scripts\python.exe manage.py import_contracts_csv data\import\contracts_eis_demo_mirea_30.csv
+```
+
+Для ручной загрузки реальных контрактов из `zakupki.gov.ru` по ИНН:
+
+```cmd
+.\.venv\Scripts\python.exe manage.py sync_zakupki_contracts 7729040491
 ```
 
 ### 7. Запустить сервер
@@ -126,16 +141,31 @@ python3 -m venv .venv
 cp .env.example .env
 ```
 
+По умолчанию приложение само обновляет контракты из ЕИС при открытии карточки компании.
+Настройки парсера можно изменить в `.env`:
+
+```env
+ZAKUPKI_SYNC_ENABLED=True
+ZAKUPKI_CONTRACTS_LIMIT=100
+ZAKUPKI_TIMEOUT=25
+```
+
 ### 6. Применить миграции базы данных
 
 ```bash
 ./.venv/bin/python manage.py migrate
 ```
 
-### 7. Импортировать демонстрационные контракты
+### 7. Импортировать демонстрационные контракты, если нужен офлайн-режим
 
 ```bash
 ./.venv/bin/python manage.py import_contracts_csv data/import/contracts_eis_demo_mirea_30.csv
+```
+
+Для ручной загрузки реальных контрактов из `zakupki.gov.ru` по ИНН:
+
+```bash
+./.venv/bin/python manage.py sync_zakupki_contracts 7729040491
 ```
 
 ### 8. Запустить сервер

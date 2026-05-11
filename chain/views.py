@@ -3,6 +3,7 @@ from .forms import InnSearchForm
 from .models import Company, SearchHistory
 from .services.analytics import build_graph_data, get_company_contracts, get_counterparty_stats
 from .services.company_lookup import get_or_create_company_by_inn
+from .services.zakupki import digits_only, sync_contracts_by_inn
 
 
 def index(request):
@@ -21,10 +22,20 @@ def index(request):
 
 
 def company_detail(request, inn):
-    company = get_or_create_company_by_inn(inn)
+    clean_inn = digits_only(inn)
+    sync_result = sync_contracts_by_inn(clean_inn)
+    company = Company.objects.filter(inn=clean_inn).first() or get_or_create_company_by_inn(clean_inn)
 
     if company is None:
-        return render(request, 'chain/company_not_found.html', {'inn': inn}, status=404)
+        return render(
+            request,
+            'chain/company_not_found.html',
+            {
+                'inn': clean_inn,
+                'sync_result': sync_result,
+            },
+            status=404,
+        )
 
     contracts = get_company_contracts(company)
     stats = get_counterparty_stats(company, contracts)
@@ -35,6 +46,7 @@ def company_detail(request, inn):
         'contracts': contracts,
         'stats': stats,
         'graph_data': graph_data,
+        'sync_result': sync_result,
     })
 
 
@@ -44,10 +56,20 @@ def history(request):
 
 
 def report(request, inn):
-    company = get_or_create_company_by_inn(inn)
+    clean_inn = digits_only(inn)
+    sync_result = sync_contracts_by_inn(clean_inn)
+    company = Company.objects.filter(inn=clean_inn).first() or get_or_create_company_by_inn(clean_inn)
 
     if company is None:
-        return render(request, 'chain/company_not_found.html', {'inn': inn}, status=404)
+        return render(
+            request,
+            'chain/company_not_found.html',
+            {
+                'inn': clean_inn,
+                'sync_result': sync_result,
+            },
+            status=404,
+        )
 
     contracts = get_company_contracts(company)
     stats = get_counterparty_stats(company, contracts)
@@ -58,4 +80,5 @@ def report(request, inn):
         'contracts': contracts,
         'stats': stats,
         'graph_data': graph_data,
+        'sync_result': sync_result,
     })

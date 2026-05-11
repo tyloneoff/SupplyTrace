@@ -17,6 +17,21 @@
         <p><b>ОГРН:</b> {{ company.ogrn }}</p>
     {% endif %}
 
+    {% if sync_result %}
+        <div class="sync-status {% if sync_result.has_errors %}sync-status-warning{% endif %}">
+            {% if not sync_result.enabled %}
+                Автообновление ЕИС отключено.
+            {% elif sync_result.has_errors %}
+                ЕИС: данные из локальной базы показаны, но обновление завершилось с предупреждением.
+                <small>{{ sync_result.errors|join:' ' }}</small>
+            {% elif sync_result.saved %}
+                ЕИС: загружено {{ sync_result.imported }}, обновлено {{ sync_result.updated }} контракт(ов).
+            {% else %}
+                ЕИС: новых контрактов за последний год не найдено.
+            {% endif %}
+        </div>
+    {% endif %}
+
     <a class="button-secondary" href="{% url 'report' company.inn %}">
         Открыть HTML-отчёт
     </a>
@@ -43,7 +58,7 @@
     {% else %}
         <p>
             Контракты за последний год не найдены.
-            Проверь, что данные были импортированы.
+            Поиск в ЕИС уже выполнен, можно проверить ИНН или попробовать позже.
         </p>
     {% endif %}
 </section>

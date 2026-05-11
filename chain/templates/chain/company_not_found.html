@@ -9,16 +9,16 @@
 
     <p>Возможные причины:</p>
     <ul>
-        <li>компания ещё не добавлена в локальную базу;</li>
+        <li>в ЕИС за последний год нет открытых контрактов по этому ИНН;</li>
+        <li>zakupki.gov.ru временно не ответил на CSV-выгрузку;</li>
         <li>в файле <code>.env</code> не указан <code>DADATA_TOKEN</code>;</li>
         <li>сервер Django не был перезапущен после изменения <code>.env</code>;</li>
         <li>ИНН введён неверно.</li>
     </ul>
 
-    <p>
-        Для PoC можно загрузить демонстрационные контракты через CSV-команду
-        <code>import_contracts_csv</code>.
-    </p>
+    {% if sync_result and sync_result.errors %}
+        <p class="error">{{ sync_result.errors|join:' ' }}</p>
+    {% endif %}
 
     <a class="button-secondary" href="{% url 'index' %}">Вернуться на главную</a>
 </section>

@@ -86,6 +86,26 @@ button,
     margin-top: 10px;
 }
 
+.sync-status {
+    margin: 16px 0 6px;
+    padding: 12px 14px;
+    border: 1px solid #bfdbfe;
+    border-radius: 8px;
+    background: #eff6ff;
+    color: #1e3a8a;
+}
+
+.sync-status small {
+    display: block;
+    margin-top: 6px;
+}
+
+.sync-status-warning {
+    border-color: #fde68a;
+    background: #fffbeb;
+    color: #92400e;
+}
+
 .error {
     color: #b91c1c;
     width: 100%;

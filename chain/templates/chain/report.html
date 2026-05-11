@@ -7,6 +7,13 @@
     <h1>HTML-отчёт по компании</h1>
     <p>Компания: <b>{{ company.name }}</b></p>
     <p>ИНН: <b>{{ company.inn }}</b></p>
+    {% if sync_result and sync_result.enabled %}
+        <p>
+            ЕИС: загружено {{ sync_result.imported }},
+            обновлено {{ sync_result.updated }},
+            пропущено {{ sync_result.skipped }}.
+        </p>
+    {% endif %}
 </section>
 
 <section class="card">

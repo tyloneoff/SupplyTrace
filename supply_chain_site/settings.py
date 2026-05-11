@@ -10,6 +10,11 @@ DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
 
 ALLOWED_HOSTS = [host.strip() for host in os.getenv('ALLOWED_HOSTS', '127.0.0.1,localhost').split(',') if host.strip()]
 
+ZAKUPKI_SYNC_ENABLED = os.getenv('ZAKUPKI_SYNC_ENABLED', 'True').lower() == 'true'
+ZAKUPKI_CONTRACTS_LIMIT = int(os.getenv('ZAKUPKI_CONTRACTS_LIMIT', '100'))
+ZAKUPKI_TIMEOUT = int(os.getenv('ZAKUPKI_TIMEOUT', '25'))
+ZAKUPKI_USER_AGENT = os.getenv('ZAKUPKI_USER_AGENT', 'SupplyTrace/1.0')
+
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
