@@ -50,8 +50,8 @@ DADATA_TOKEN=
 После клонирования репозитория перейдите в папку проекта:
 
 ```cmd
-git clone <repo-url>
-cd frontend-project
+git clone <repo-url> <project-folder>
+cd <project-folder>
 ```
 
 ```cmd
@@ -73,8 +73,8 @@ http://127.0.0.1:8000/
 После клонирования репозитория перейдите в папку проекта:
 
 ```bash
-git clone <repo-url>
-cd frontend-project
+git clone <repo-url> <project-folder>
+cd <project-folder>
 ```
 
 ```bash
