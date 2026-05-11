@@ -5,12 +5,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Цепочка поставок{% endblock %}</title>
-    <link rel="stylesheet" href="{% static 'chain/style.css' %}">
+    <link rel="stylesheet" href="{% static 'chain/style.css' %}?v=7">
 </head>
 <body>
 <header class="topbar">
     <div class="container topbar-inner">
-        <a class="logo" href="{% url 'index' %}">Supply Chain PoC</a>
+        <a class="logo" href="{% url 'index' %}">Цепочка поставок</a>
         <nav>
             <a href="{% url 'index' %}">Поиск</a>
             <a href="{% url 'history' %}">История</a>
@@ -21,5 +21,6 @@
 <main class="container">
     {% block content %}{% endblock %}
 </main>
+<script src="{% static 'chain/table-scroll.js' %}?v=1"></script>
 </body>
 </html>

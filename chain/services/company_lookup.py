@@ -66,7 +66,10 @@ def fetch_company_from_dadata(inn):
 
 
 def get_or_create_company_by_inn(inn):
-    """Возвращает компанию из базы или пробует подтянуть карточку из DaData."""
+    """Возвращает компанию из базы, DaData или создает минимальную карточку по ИНН."""
+    if len(inn) not in (10, 12) or not inn.isdigit():
+        return None
+
     company = Company.objects.filter(inn=inn).first()
 
     if company:
@@ -75,7 +78,12 @@ def get_or_create_company_by_inn(inn):
     company_data = fetch_company_from_dadata(inn)
 
     if company_data is None:
-        return None
+        company_data = {
+            'inn': inn,
+            'name': f'Компания с ИНН {inn}',
+            'kpp': '',
+            'ogrn': '',
+        }
 
     company, _ = Company.objects.update_or_create(
         inn=company_data['inn'],

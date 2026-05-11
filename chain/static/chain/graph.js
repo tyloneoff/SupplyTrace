@@ -75,6 +75,42 @@ document.addEventListener("DOMContentLoaded", function () {
                     background: "#dcfce7",
                     border: "#22c55e"
                 }
+            },
+
+            contract: {
+                color: {
+                    background: "#f8fafc",
+                    border: "#94a3b8"
+                },
+                font: {
+                    size: 12,
+                    face: "Arial",
+                    color: "#334155"
+                }
+            },
+
+            closed_contract: {
+                color: {
+                    background: "#fff7ed",
+                    border: "#fb923c"
+                },
+                font: {
+                    size: 12,
+                    face: "Arial",
+                    color: "#9a3412"
+                }
+            },
+
+            closed: {
+                color: {
+                    background: "#fee2e2",
+                    border: "#ef4444"
+                },
+                font: {
+                    size: 13,
+                    face: "Arial",
+                    color: "#991b1b"
+                }
             }
         },
 
@@ -109,6 +145,8 @@ document.addEventListener("DOMContentLoaded", function () {
         options
     );
 
+    addGraphControls(graphContainer, network);
+
     setTimeout(function () {
         network.fit({
             animation: false
@@ -123,3 +161,55 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }, 200);
 });
+
+function addGraphControls(graphContainer, network) {
+    const controls = document.createElement("div");
+    controls.className = "graph-controls";
+
+    const zoomInButton = createGraphControlButton("+", "Увеличить масштаб");
+    const zoomOutButton = createGraphControlButton("-", "Уменьшить масштаб");
+    const resetButton = createGraphControlButton("⤢", "Показать весь граф");
+
+    zoomInButton.addEventListener("click", function () {
+        zoomGraph(network, 1.2);
+    });
+
+    zoomOutButton.addEventListener("click", function () {
+        zoomGraph(network, 1 / 1.2);
+    });
+
+    resetButton.addEventListener("click", function () {
+        network.fit({
+            animation: {
+                duration: 180,
+                easingFunction: "easeInOutQuad"
+            }
+        });
+    });
+
+    controls.append(zoomInButton, zoomOutButton, resetButton);
+    graphContainer.appendChild(controls);
+}
+
+function createGraphControlButton(label, title) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "graph-control-button";
+    button.textContent = label;
+    button.title = title;
+    button.setAttribute("aria-label", title);
+    return button;
+}
+
+function zoomGraph(network, factor) {
+    const nextScale = Math.max(0.2, Math.min(2.5, network.getScale() * factor));
+
+    network.moveTo({
+        position: network.getViewPosition(),
+        scale: nextScale,
+        animation: {
+            duration: 150,
+            easingFunction: "easeInOutQuad"
+        }
+    });
+}

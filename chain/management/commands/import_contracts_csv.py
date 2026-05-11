@@ -15,8 +15,6 @@ REQUIRED_COLUMNS = {
     'price',
     'customer_inn',
     'customer_name',
-    'supplier_inn',
-    'supplier_name',
 }
 
 
@@ -60,11 +58,14 @@ class Command(BaseCommand):
         number = clean(row.get('number'))
         customer_inn = clean(row.get('customer_inn'))
         supplier_inn = clean(row.get('supplier_inn'))
+        supplier_name = clean(row.get('supplier_name'))
+        is_closed = parse_bool(row.get('is_closed'))
+        supplier_disclosed = not is_closed and bool(supplier_inn)
 
         if not number:
             raise ValueError('нет номера контракта')
-        if not customer_inn or not supplier_inn:
-            raise ValueError('нет ИНН заказчика или поставщика')
+        if not customer_inn:
+            raise ValueError('нет ИНН заказчика')
 
         customer = self.get_or_create_company(
             inn=customer_inn,
@@ -72,12 +73,18 @@ class Command(BaseCommand):
             kpp=clean(row.get('customer_kpp')),
             ogrn=clean(row.get('customer_ogrn')),
         )
-        supplier = self.get_or_create_company(
-            inn=supplier_inn,
-            name=clean(row.get('supplier_name')) or f'Компания {supplier_inn}',
-            kpp=clean(row.get('supplier_kpp')),
-            ogrn=clean(row.get('supplier_ogrn')),
-        )
+        supplier = None
+
+        if supplier_disclosed:
+            if not supplier_inn:
+                raise ValueError('нет ИНН поставщика для открытого контракта')
+
+            supplier = self.get_or_create_company(
+                inn=supplier_inn,
+                name=supplier_name or f'Компания {supplier_inn}',
+                kpp=clean(row.get('supplier_kpp')),
+                ogrn=clean(row.get('supplier_ogrn')),
+            )
 
         Contract.objects.update_or_create(
             number=number,
@@ -89,6 +96,8 @@ class Command(BaseCommand):
                 'date': parse_date(row.get('date')),
                 'purchase_url': clean(row.get('purchase_url')),
                 'source_file': source_file,
+                'is_closed': is_closed,
+                'supplier_disclosed': supplier_disclosed,
             },
         )
 
@@ -132,3 +141,8 @@ def parse_date(value):
             pass
 
     raise ValueError(f'некорректная дата: {value}')
+
+
+def parse_bool(value):
+    value = clean(value).lower()
+    return value in {'1', 'true', 'yes', 'y', 'да', 'закрыт', 'закрытый'}

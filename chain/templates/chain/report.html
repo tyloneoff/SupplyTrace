@@ -7,13 +7,35 @@
     <h1>HTML-отчёт по компании</h1>
     <p>Компания: <b>{{ company.name }}</b></p>
     <p>ИНН: <b>{{ company.inn }}</b></p>
+    <p>
+        Актуальность:
+        {% if company.last_synced_at %}
+            обновлено {{ company.last_synced_at|date:'d.m.Y H:i' }}
+            {% if company.last_sync_status %}({{ company.get_last_sync_status_display }}){% endif %}
+        {% else %}
+            публичные источники ещё не обновлялись для этого ИНН
+        {% endif %}
+    </p>
+    {% if company.last_sync_message %}
+        <p>{{ company.last_sync_message }}</p>
+    {% endif %}
     {% if sync_result and sync_result.enabled %}
         <p>
-            ЕИС: загружено {{ sync_result.imported }},
+            Источники: загружено {{ sync_result.imported }},
             обновлено {{ sync_result.updated }},
+            без изменений {{ sync_result.unchanged }},
             пропущено {{ sync_result.skipped }}.
         </p>
     {% endif %}
+</section>
+
+<section class="card">
+    <h2>Краткое резюме</h2>
+    <p>
+        За последний год найдено {{ contracts|length }} закупок/контрактов.
+        Уникальных контрагентов: {{ graph_data.total_count }}.
+        На графе показано {{ graph_data.contracts_shown_count }} ключевых связей.
+    </p>
 </section>
 
 <section class="card">
@@ -30,7 +52,7 @@
         <div id="graph"></div>
         {{ graph_data|json_script:'graph-data' }}
         <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
-        <script src="{% static 'chain/graph.js' %}"></script>
+        <script src="{% static 'chain/graph.js' %}?v=3"></script>
     {% else %}
         <p>Нет данных для построения графа.</p>
     {% endif %}
@@ -41,7 +63,7 @@
     {% if stats %}
         <ol>
             {% for item in stats %}
-                <li>{{ item.company.name }} — {{ item.count }} контракт(ов), сумма {{ item.total_price }}</li>
+                <li>{{ item.display_name }} — {{ item.count }} контракт(ов), сумма {{ item.total_price|floatformat:2 }}</li>
             {% endfor %}
         </ol>
     {% else %}

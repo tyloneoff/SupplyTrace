@@ -1,9 +1,11 @@
+from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from .forms import InnSearchForm
 from .models import Company, SearchHistory
 from .services.analytics import build_graph_data, get_company_contracts, get_counterparty_stats
 from .services.company_lookup import get_or_create_company_by_inn
-from .services.zakupki import digits_only, sync_contracts_by_inn
+from .services.public_sources import record_sync_result, sync_public_contracts_by_inn
+from .services.zakupki import digits_only
 
 
 def index(request):
@@ -23,7 +25,18 @@ def index(request):
 
 def company_detail(request, inn):
     clean_inn = digits_only(inn)
-    sync_result = sync_contracts_by_inn(clean_inn)
+    if not is_valid_inn(clean_inn):
+        return render(
+            request,
+            'chain/company_not_found.html',
+            {
+                'inn': clean_inn or inn,
+                'sync_result': None,
+            },
+            status=400,
+        )
+
+    sync_result = None
     company = Company.objects.filter(inn=clean_inn).first() or get_or_create_company_by_inn(clean_inn)
 
     if company is None:
@@ -36,6 +49,11 @@ def company_detail(request, inn):
             },
             status=404,
         )
+
+    if request.method == 'POST' and request.POST.get('action') == 'refresh':
+        sync_result = sync_public_contracts_by_inn(clean_inn)
+        company.refresh_from_db()
+        record_sync_result(company, sync_result)
 
     contracts = get_company_contracts(company)
     stats = get_counterparty_stats(company, contracts)
@@ -57,7 +75,18 @@ def history(request):
 
 def report(request, inn):
     clean_inn = digits_only(inn)
-    sync_result = sync_contracts_by_inn(clean_inn)
+    if not is_valid_inn(clean_inn):
+        return render(
+            request,
+            'chain/company_not_found.html',
+            {
+                'inn': clean_inn or inn,
+                'sync_result': None,
+            },
+            status=400,
+        )
+
+    sync_result = None
     company = Company.objects.filter(inn=clean_inn).first() or get_or_create_company_by_inn(clean_inn)
 
     if company is None:
@@ -82,3 +111,20 @@ def report(request, inn):
         'graph_data': graph_data,
         'sync_result': sync_result,
     })
+
+
+def company_graph_json(request, inn):
+    clean_inn = digits_only(inn)
+    if not is_valid_inn(clean_inn):
+        return JsonResponse({'error': 'Некорректный ИНН'}, status=400)
+
+    company = Company.objects.filter(inn=clean_inn).first() or get_or_create_company_by_inn(clean_inn)
+
+    contracts = get_company_contracts(company)
+    graph_data = build_graph_data(company, contracts)
+
+    return JsonResponse(graph_data)
+
+
+def is_valid_inn(inn):
+    return inn.isdigit() and len(inn) in (10, 12)

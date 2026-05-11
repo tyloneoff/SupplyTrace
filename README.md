@@ -1,198 +1,120 @@
-## Как запустить проект
+# Цепочка поставок
 
-Ниже инструкция для запуска проекта локально на Windows и Linux.
+Django PoC для анализа участия компании в закупках и контрактах по ИНН.
 
-Проект запускается через Django development server:
+Проект выполнен как учебный pet-проект и proof of concept: цель — показать архитектуру Django-приложения, сбор публичных данных, базовую аналитику, граф связей и HTML-отчётность. Это не промышленная система мониторинга закупок.
 
-```text
-http://127.0.0.1:8000/
-```
+Приложение показывает карточку компании, таблицу закупок/контрактов за последний год, статистику контрагентов, интерактивный граф связей и HTML-отчет.
 
----
+## Источники данных
 
-## Запуск на Windows
+Основной сценарий работы — live-сбор из публичных источников:
 
-Инструкция рассчитана на запуск через `cmd` без ручной активации виртуального окружения.
+- ЕИС `zakupki.gov.ru`;
+- Портал поставщиков `zakupki.mos.ru`.
 
-### 1. Склонировать репозиторий
+Проект не хранит публичные реестры целиком. В базе остаются только компании, контракты и журнал обновлений по тем ИНН, которые пользователь уже открывал или обновлял. Это делает интерфейс стабильнее, но не превращает PoC в тяжёлое зеркало госреестров.
 
-```cmd
-git clone https://github.com/tyloneoff/SupplyTrace.git
-cd SupplyTrace
-```
+По ТЗ также оставлена команда импорта демонстрационного CSV, чтобы можно было проверить проект без стабильного доступа к внешним сайтам. CSV поддерживает закрытые тендеры: если поставщик не раскрыт, запись импортируется и отображается без ошибки.
 
-### 2. Создать виртуальное окружение
+## Настройки
 
-```cmd
-py -m venv .venv
-```
-
-### 3. Установить зависимости
-
-```cmd
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-```
-
-### 4. Создать файл настроек `.env`
-
-Для `cmd`:
+Создайте `.env` из примера:
 
 ```cmd
 copy .env.example .env
 ```
 
-Для PowerShell:
-
-```powershell
-Copy-Item .env.example .env
-```
-
-По умолчанию приложение само обновляет контракты из ЕИС при открытии карточки компании.
-Настройки парсера можно изменить в `.env`:
-
-```env
-ZAKUPKI_SYNC_ENABLED=True
-ZAKUPKI_CONTRACTS_LIMIT=100
-ZAKUPKI_TIMEOUT=25
-```
-
-### 5. Применить миграции базы данных
-
-```cmd
-.\.venv\Scripts\python.exe manage.py migrate
-```
-
-### 6. Импортировать демонстрационные контракты, если нужен офлайн-режим
-
-```cmd
-.\.venv\Scripts\python.exe manage.py import_contracts_csv data\import\contracts_eis_demo_mirea_30.csv
-```
-
-Для ручной загрузки реальных контрактов из `zakupki.gov.ru` по ИНН:
-
-```cmd
-.\.venv\Scripts\python.exe manage.py sync_zakupki_contracts 7729040491
-```
-
-### 7. Запустить сервер
-
-```cmd
-.\.venv\Scripts\python.exe manage.py runserver
-```
-
-После запуска открыть в браузере:
-
-```text
-http://127.0.0.1:8000/
-```
-
-Для быстрой проверки можно открыть страницу компании из демонстрационного набора:
-
-```text
-http://127.0.0.1:8000/company/7729040491/
-```
-
----
-
-## Повторный запуск на Windows
-
-Если проект уже был установлен ранее, достаточно выполнить:
-
-```cmd
-cd SupplyTrace
-.\.venv\Scripts\python.exe manage.py runserver
-```
-
----
-
-## Запуск на Linux
-
-Инструкция рассчитана на Ubuntu/Debian-подобные системы.
-
-### 1. Склонировать репозиторий
-
-```bash
-git clone https://github.com/tyloneoff/SupplyTrace.git
-cd SupplyTrace
-```
-
-### 2. Установить Python и venv, если они ещё не установлены
-
-```bash
-sudo apt update
-sudo apt install python3 python3-venv python3-pip
-```
-
-### 3. Создать виртуальное окружение
-
-```bash
-python3 -m venv .venv
-```
-
-### 4. Установить зависимости
-
-```bash
-./.venv/bin/python -m pip install -r requirements.txt
-```
-
-### 5. Создать файл настроек `.env`
+или для Linux:
 
 ```bash
 cp .env.example .env
 ```
 
-По умолчанию приложение само обновляет контракты из ЕИС при открытии карточки компании.
-Настройки парсера можно изменить в `.env`:
+Основные параметры:
 
 ```env
 ZAKUPKI_SYNC_ENABLED=True
+ZAKUPKI_MOS_SYNC_ENABLED=True
 ZAKUPKI_CONTRACTS_LIMIT=100
+ZAKUPKI_CONTRACT_LOOKBACK_DAYS=365
 ZAKUPKI_TIMEOUT=25
+ZAKUPKI_USER_AGENT=SupplyTrace/1.0
+DADATA_TOKEN=
 ```
 
-### 6. Применить миграции базы данных
+`DADATA_TOKEN` необязателен. Если токена нет и реквизиты не удалось получить из контрактов, приложение создаст минимальную карточку вида `Компания с ИНН ...`.
 
-```bash
-./.venv/bin/python manage.py migrate
+## Запуск на Windows
+
+После клонирования репозитория перейдите в папку проекта:
+
+```cmd
+git clone <repo-url>
+cd frontend-project
 ```
 
-### 7. Импортировать демонстрационные контракты, если нужен офлайн-режим
-
-```bash
-./.venv/bin/python manage.py import_contracts_csv data/import/contracts_eis_demo_mirea_30.csv
+```cmd
+py -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+copy .env.example .env
+.\.venv\Scripts\python.exe manage.py migrate
+.\.venv\Scripts\python.exe manage.py runserver
 ```
 
-Для ручной загрузки реальных контрактов из `zakupki.gov.ru` по ИНН:
-
-```bash
-./.venv/bin/python manage.py sync_zakupki_contracts 7729040491
-```
-
-### 8. Запустить сервер
-
-```bash
-./.venv/bin/python manage.py runserver
-```
-
-После запуска открыть в браузере:
+Откройте:
 
 ```text
 http://127.0.0.1:8000/
 ```
 
-Для быстрой проверки можно открыть страницу компании из демонстрационного набора:
+## Запуск на Linux
+
+После клонирования репозитория перейдите в папку проекта:
+
+```bash
+git clone <repo-url>
+cd frontend-project
+```
+
+```bash
+python3 -m venv .venv
+./.venv/bin/python -m pip install -r requirements.txt
+cp .env.example .env
+./.venv/bin/python manage.py migrate
+./.venv/bin/python manage.py runserver
+```
+
+## Демо-данные
+
+Для проверки таблиц, графа, повторяющихся контрагентов и закрытых тендеров:
+
+```cmd
+.\.venv\Scripts\python.exe manage.py import_contracts_csv data\import\contracts_demo.csv
+```
+
+Linux:
+
+```bash
+./.venv/bin/python manage.py import_contracts_csv data/import/contracts_demo.csv
+```
+
+После импорта можно открыть:
 
 ```text
 http://127.0.0.1:8000/company/7729040491/
 ```
 
----
+## Обновление из публичных источников
 
-## Повторный запуск на Linux
+В карточке компании есть кнопка `Обновить данные`. Обычное открытие карточки не делает сетевой запрос к публичным реестрам, чтобы страница оставалась быстрой и не показывала технические ошибки при временной недоступности источников.
 
-Если проект уже был установлен ранее, достаточно выполнить:
+Если ИНН открыт впервые и по нему ещё нет сохранённых контрактов, карточка прямо показывает, что данные ещё не запрашивались, и предлагает кнопку `Найти данные в публичных источниках`.
 
-```bash
-cd SupplyTrace
-./.venv/bin/python manage.py runserver
+После каждой ручной синхронизации сохраняется короткий статус: дата обновления, итог, количество найденных/обновлённых записей и состояние каждого источника. Эти метаданные отображаются в карточке компании и HTML-отчёте.
+
+Команда для прямой проверки `zakupki.gov.ru`:
+
+```cmd
+.\.venv\Scripts\python.exe manage.py sync_zakupki_contracts 7729040491 --limit 20
 ```

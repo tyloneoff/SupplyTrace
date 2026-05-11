@@ -7,6 +7,7 @@ body {
     font-family: Arial, sans-serif;
     background: #f4f6f8;
     color: #202124;
+    overflow-x: hidden;
 }
 
 a {
@@ -51,6 +52,7 @@ a {
     border-radius: 14px;
     box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
     margin-bottom: 24px;
+    overflow: hidden;
 }
 
 .search-form {
@@ -86,6 +88,22 @@ button,
     margin-top: 10px;
 }
 
+.button-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.button-row .button-secondary {
+    margin-top: 0;
+}
+
+.inline-form {
+    margin: 0;
+}
+
 .sync-status {
     margin: 16px 0 6px;
     padding: 12px 14px;
@@ -95,9 +113,88 @@ button,
     color: #1e3a8a;
 }
 
+.freshness-panel {
+    margin: 16px 0 6px;
+    padding: 12px 14px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #f8fafc;
+    color: #334155;
+}
+
+.freshness-panel small {
+    display: block;
+    margin-top: 6px;
+}
+
+.sync-badge {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 8px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 700;
+    vertical-align: middle;
+}
+
+.sync-badge-ok {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.sync-badge-warning {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.sync-badge-error {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.sync-badge-disabled {
+    background: #e2e8f0;
+    color: #475569;
+}
+
 .sync-status small {
     display: block;
     margin-top: 6px;
+    overflow-wrap: anywhere;
+}
+
+.sync-status-muted {
+    border-color: #dbe4ef;
+    background: #f8fafc;
+    color: #475569;
+}
+
+.sync-status-action {
+    border-color: #93c5fd;
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-weight: 600;
+}
+
+.source-status-list {
+    margin: 8px 0 0;
+    padding-left: 18px;
+    font-size: 14px;
+}
+
+.source-status-list li + li {
+    margin-top: 4px;
+}
+
+.sync-details {
+    margin-top: 8px;
+}
+
+.sync-details summary {
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
 }
 
 .sync-status-warning {
@@ -111,11 +208,17 @@ button,
     width: 100%;
 }
 
+.closed-label {
+    color: #b91c1c;
+    font-weight: 600;
+}
+
 table {
     width: 100%;
     border-collapse: collapse;
     margin-top: 12px;
     background: white;
+    table-layout: fixed;
 }
 
 th,
@@ -124,10 +227,74 @@ td {
     border-bottom: 1px solid #e2e8f0;
     vertical-align: top;
     text-align: left;
+    overflow-wrap: anywhere;
 }
 
 th {
     background: #f8fafc;
+}
+
+.table-wrap {
+    width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+}
+
+.table-scroll-top {
+    width: 100%;
+    height: 16px;
+    margin-top: 12px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+}
+
+.table-scroll-spacer {
+    height: 1px;
+}
+
+.table-scroll-top + .table-wrap table {
+    margin-top: 6px;
+}
+
+.stats-table {
+    min-width: 860px;
+}
+
+.stats-table th:nth-child(1) {
+    width: 33%;
+}
+
+.stats-table th:nth-child(2) {
+    width: 16%;
+}
+
+.stats-table th:nth-child(3) {
+    width: 14%;
+}
+
+.stats-table th:nth-child(4) {
+    width: 15%;
+}
+
+.stats-table th:nth-child(5) {
+    width: 22%;
+}
+
+.contracts-table {
+    min-width: 920px;
+}
+
+.date-cell,
+.number-cell,
+.status-cell,
+.source-link-cell {
+    white-space: normal;
+}
+
+.amount-cell {
+    text-align: right;
+    white-space: normal;
 }
 
 #graph {
@@ -143,6 +310,40 @@ th {
 
 #graph canvas {
     max-width: 100%;
+}
+
+.graph-controls {
+    display: flex;
+    gap: 6px;
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 10;
+}
+
+.graph-control-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.92);
+    color: #111827;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+}
+
+.graph-control-button:hover,
+.graph-control-button:focus {
+    background: #eff6ff;
+    border-color: #2563eb;
+    color: #1d4ed8;
+    outline: none;
 }
 
 small {

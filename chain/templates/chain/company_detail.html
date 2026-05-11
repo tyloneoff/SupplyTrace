@@ -17,24 +17,103 @@
         <p><b>ОГРН:</b> {{ company.ogrn }}</p>
     {% endif %}
 
+    <div class="freshness-panel">
+        <b>Актуальность данных:</b>
+        {% if company.last_synced_at %}
+            обновлено {{ company.last_synced_at|date:'d.m.Y H:i' }}
+            {% if company.last_sync_status %}
+                <span class="sync-badge sync-badge-{{ company.last_sync_status }}">
+                    {{ company.get_last_sync_status_display }}
+                </span>
+            {% endif %}
+            {% if company.last_sync_message %}
+                <small>{{ company.last_sync_message }}</small>
+            {% endif %}
+        {% else %}
+            данные по этому ИНН ещё не запрашивались в публичных источниках.
+        {% endif %}
+    </div>
+
     {% if sync_result %}
         <div class="sync-status {% if sync_result.has_errors %}sync-status-warning{% endif %}">
             {% if not sync_result.enabled %}
-                Автообновление ЕИС отключено.
+                Обновление из публичных источников отключено.
             {% elif sync_result.has_errors %}
-                ЕИС: данные из локальной базы показаны, но обновление завершилось с предупреждением.
-                <small>{{ sync_result.errors|join:' ' }}</small>
+                {% if sync_result.saved or sync_result.unchanged %}
+                    Данные частично обновлены. Один из публичных источников сейчас недоступен.
+                {% else %}
+                    Публичные источники сейчас недоступны. Показаны ранее сохранённые данные, если они есть.
+                {% endif %}
+                {% if sync_result.sources %}
+                    <ul class="source-status-list">
+                        {% for source in sync_result.sources %}
+                            <li>
+                                <b>{{ source.name }}:</b>
+                                {% if not source.enabled %}
+                                    отключён.
+                                {% elif source.errors %}
+                                    есть предупреждение, получено {{ source.fetched }}, сохранено/обновлено {{ source.saved }}.
+                                {% else %}
+                                    получено {{ source.fetched }}, сохранено/обновлено {{ source.saved }}, без изменений {{ source.unchanged }}.
+                                {% endif %}
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+                <details class="sync-details">
+                    <summary>Подробности</summary>
+                    <small>{{ sync_result.errors|join:' ' }}</small>
+                </details>
             {% elif sync_result.saved %}
-                ЕИС: загружено {{ sync_result.imported }}, обновлено {{ sync_result.updated }} контракт(ов).
+                Источники: загружено {{ sync_result.imported }}, обновлено {{ sync_result.updated }} контракт(ов).
+            {% elif sync_result.unchanged %}
+                Источники: данные актуальны, проверено {{ sync_result.unchanged }} контракт(ов) без изменений.
             {% else %}
-                ЕИС: новых контрактов за последний год не найдено.
+                В публичных источниках новых контрактов за последний год не найдено.
+            {% endif %}
+            {% if sync_result.sources and not sync_result.has_errors %}
+                <ul class="source-status-list">
+                    {% for source in sync_result.sources %}
+                        <li>
+                            <b>{{ source.name }}:</b>
+                            {% if not source.enabled %}
+                                отключён.
+                            {% else %}
+                                получено {{ source.fetched }}, сохранено/обновлено {{ source.saved }}, без изменений {{ source.unchanged }}.
+                            {% endif %}
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+        </div>
+    {% else %}
+        <div class="sync-status {% if not company.last_synced_at and not contracts %}sync-status-action{% else %}sync-status-muted{% endif %}">
+            {% if not company.last_synced_at and not contracts %}
+                По этому ИНН пока нет загруженных закупок или контрактов. Это не значит, что их нет в реестрах: данные ещё не запрашивались. Нажмите «Найти данные в публичных источниках».
+            {% elif not company.last_synced_at %}
+                Показаны данные, которые уже есть в проекте. Публичные источники по этому ИНН ещё не обновлялись.
+            {% else %}
+                Показаны уже найденные данные проекта. Чтобы запросить публичные источники сейчас, нажмите «Обновить данные».
             {% endif %}
         </div>
     {% endif %}
 
-    <a class="button-secondary" href="{% url 'report' company.inn %}">
-        Открыть HTML-отчёт
-    </a>
+    <div class="button-row">
+        <form method="post" class="inline-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="refresh">
+            <button type="submit">
+                {% if not company.last_synced_at %}
+                    Найти данные в публичных источниках
+                {% else %}
+                    Обновить данные
+                {% endif %}
+            </button>
+        </form>
+        <a class="button-secondary" href="{% url 'report' company.inn %}">
+            Открыть HTML-отчёт
+        </a>
+    </div>
 </section>
 
 <section class="card">
@@ -43,8 +122,8 @@
     {% if contracts %}
         {% if graph_data.total_count %}
             <p>
-                Показаны топ-{{ graph_data.shown_count }} контрагентов
-                из {{ graph_data.total_count }} по количеству и сумме контрактов.
+                На графе показаны топ-{{ graph_data.shown_count }} контрагентов
+                и {{ graph_data.contracts_shown_count }} закупок/контрактов из {{ graph_data.contracts_total_count }}.
                 Полный список доступен в таблице ниже.
             </p>
         {% endif %}
@@ -54,11 +133,16 @@
         {{ graph_data|json_script:'graph-data' }}
 
         <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
-        <script src="{% static 'chain/graph.js' %}"></script>
+        <script src="{% static 'chain/graph.js' %}?v=3"></script>
     {% else %}
         <p>
-            Контракты за последний год не найдены.
-            Поиск в ЕИС уже выполнен, можно проверить ИНН или попробовать позже.
+            {% if not company.last_synced_at and not sync_result %}
+                Данные для графа ещё не загружались. Запустите поиск в публичных источниках.
+            {% elif sync_result %}
+                Поиск в публичных источниках выполнен, можно проверить ИНН или попробовать позже.
+            {% else %}
+                Контракты за последний год не найдены. Нажмите «Обновить данные», чтобы запросить публичные источники ещё раз.
+            {% endif %}
         </p>
     {% endif %}
 </section>
@@ -67,31 +151,37 @@
     <h2>Частота участия контрагентов</h2>
 
     {% if stats %}
-        <table>
-            <thead>
-            <tr>
-                <th>Контрагент</th>
-                <th>ИНН</th>
-                <th>Роль</th>
-                <th>Кол-во контрактов</th>
-                <th>Сумма</th>
-            </tr>
-            </thead>
-
-            <tbody>
-            {% for item in stats %}
+        <div class="table-wrap">
+            <table class="stats-table">
+                <thead>
                 <tr>
-                    <td>{{ item.company.name }}</td>
-                    <td>{{ item.company.inn }}</td>
-                    <td>{{ item.role }}</td>
-                    <td>{{ item.count }}</td>
-                    <td>{{ item.total_price }}</td>
+                    <th>Контрагент</th>
+                    <th>ИНН</th>
+                    <th>Роль</th>
+                    <th>Кол-во контрактов</th>
+                    <th>Сумма</th>
                 </tr>
-            {% endfor %}
-            </tbody>
-        </table>
+                </thead>
+
+                <tbody>
+                {% for item in stats %}
+                    <tr>
+                        <td>{{ item.display_name }}</td>
+                        <td>{{ item.inn|default:'—' }}</td>
+                        <td>{{ item.role }}</td>
+                        <td class="number-cell">{{ item.count }}</td>
+                        <td class="amount-cell">{{ item.total_price|floatformat:2 }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
     {% else %}
-        <p>Нет данных для статистики.</p>
+        {% if not company.last_synced_at %}
+            <p>Статистика появится после поиска данных в публичных источниках.</p>
+        {% else %}
+            <p>Нет данных для статистики.</p>
+        {% endif %}
     {% endif %}
 </section>
 

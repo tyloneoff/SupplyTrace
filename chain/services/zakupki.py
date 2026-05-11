@@ -158,10 +158,13 @@ class ContractData:
     supplier_inn: str
     supplier_name: str
     supplier_kpp: str
+    is_closed: bool = False
+    supplier_disclosed: bool = True
+    source_url: str = ''
 
     @property
     def key(self):
-        return self.number, self.customer_inn, self.supplier_inn
+        return self.number, self.customer_inn, self.supplier_inn or 'closed'
 
 
 @dataclass
@@ -170,9 +173,11 @@ class ZakupkiSyncResult:
     fetched: int = 0
     imported: int = 0
     updated: int = 0
+    unchanged: int = 0
     skipped: int = 0
     errors: list[str] = field(default_factory=list)
     source_urls: list[str] = field(default_factory=list)
+    sources: list[dict] = field(default_factory=list)
 
     @property
     def saved(self):
@@ -200,10 +205,12 @@ def sync_contracts_by_inn(inn, limit=None):
 
     session = requests.Session()
     seen = set()
+    date_from = get_contract_date_from()
 
     for role in ('customer', 'supplier'):
-        params = build_params(clean_inn, role, export_limit)
+        params = build_params(clean_inn, role, export_limit, date_from=date_from)
         result.source_urls.append(build_search_url(params))
+        role_saved = 0
 
         try:
             rows = fetch_csv_rows(session, params)
@@ -223,7 +230,7 @@ def sync_contracts_by_inn(inn, limit=None):
                 result.skipped += 1
                 continue
 
-            if clean_inn not in (contract_data.customer_inn, contract_data.supplier_inn):
+            if not contract_matches_role(contract_data, clean_inn, role):
                 result.skipped += 1
                 continue
 
@@ -231,23 +238,30 @@ def sync_contracts_by_inn(inn, limit=None):
                 continue
 
             seen.add(contract_data.key)
-            created = save_contract(contract_data, source_file=f'zakupki.gov.ru:{role}')
+            saved_status = save_contract(contract_data, source_file=f'zakupki.gov.ru:{role}')
 
-            if created:
+            if saved_status == 'created':
                 result.imported += 1
-            else:
+            elif saved_status == 'updated':
                 result.updated += 1
+            else:
+                result.unchanged += 1
+
+            role_saved += 1
+            if role_saved >= export_limit:
+                break
 
     return result
 
 
-def build_params(inn, role, limit):
+def build_params(inn, role, limit, date_from=None):
+    date_from = date_from or get_contract_date_from()
     params = {
         **BASE_PARAMS,
         **CSV_FLAGS,
         'from': '1',
         'to': str(limit),
-        'contractDateFrom': format_date(timezone.localdate() - timedelta(days=365)),
+        'contractDateFrom': format_date(date_from),
     }
 
     if role == 'customer':
@@ -258,6 +272,19 @@ def build_params(inn, role, limit):
         params['countryRegIdNameHidden'] = '{}'
 
     return params
+
+
+def contract_matches_role(contract_data, inn, role):
+    if role == 'customer':
+        return contract_data.customer_inn == inn
+    if role == 'supplier':
+        return contract_data.supplier_inn == inn
+    raise ValueError(f'unknown zakupki role: {role}')
+
+
+def get_contract_date_from():
+    depth_days = int(getattr(settings, 'ZAKUPKI_CONTRACT_LOOKBACK_DAYS', 365))
+    return timezone.localdate() - timedelta(days=max(1, depth_days))
 
 
 def build_search_url(params):
@@ -352,13 +379,15 @@ def parse_contract_row(row):
     }
 
     number = clean(get_field(normalized_row, 'number'))
-    customer_inn = digits_only(get_field(normalized_row, 'customer_inn'))
-    supplier_inn = digits_only(get_field(normalized_row, 'supplier_inn'))
+    customer_inn = normalize_inn(get_field(normalized_row, 'customer_inn'))
+    supplier_inn = normalize_inn(get_field(normalized_row, 'supplier_inn'))
+    supplier_name = clean(get_field(normalized_row, 'supplier_name'))
+    supplier_disclosed = bool(supplier_inn)
 
     if not number:
         raise ValueError('нет номера реестровой записи')
-    if not customer_inn or not supplier_inn:
-        raise ValueError('нет ИНН заказчика или поставщика')
+    if not customer_inn:
+        raise ValueError('нет ИНН заказчика')
 
     return ContractData(
         number=number,
@@ -369,8 +398,11 @@ def parse_contract_row(row):
         customer_name=clean(get_field(normalized_row, 'customer_name')) or f'Компания {customer_inn}',
         customer_kpp=digits_only(get_field(normalized_row, 'customer_kpp')),
         supplier_inn=supplier_inn,
-        supplier_name=clean(get_field(normalized_row, 'supplier_name')) or f'Компания {supplier_inn}',
+        supplier_name=supplier_name or (f'Компания {supplier_inn}' if supplier_inn else ''),
         supplier_kpp=digits_only(get_field(normalized_row, 'supplier_kpp')),
+        is_closed=not supplier_disclosed,
+        supplier_disclosed=supplier_disclosed,
+        source_url=build_contract_url(number),
     )
 
 
@@ -394,25 +426,49 @@ def save_contract(contract_data, source_file):
         contract_data.customer_name,
         contract_data.customer_kpp,
     )
-    supplier = save_company(
-        contract_data.supplier_inn,
-        contract_data.supplier_name,
-        contract_data.supplier_kpp,
-    )
+    supplier = None
 
-    _, created = Contract.objects.update_or_create(
+    if contract_data.supplier_disclosed:
+        supplier = save_company(
+            contract_data.supplier_inn,
+            contract_data.supplier_name,
+            contract_data.supplier_kpp,
+        )
+
+    defaults = {
+        'title': contract_data.title,
+        'price': contract_data.price,
+        'date': contract_data.date,
+        'purchase_url': contract_data.source_url or build_contract_url(contract_data.number),
+        'source_file': source_file,
+        'is_closed': contract_data.is_closed,
+        'supplier_disclosed': contract_data.supplier_disclosed,
+    }
+
+    contract, created = Contract.objects.get_or_create(
         number=contract_data.number,
         customer=customer,
         supplier=supplier,
-        defaults={
-            'title': contract_data.title,
-            'price': contract_data.price,
-            'date': contract_data.date,
-            'purchase_url': build_contract_url(contract_data.number),
-            'source_file': source_file,
-        },
+        defaults=defaults,
     )
-    return created
+
+    if created:
+        return 'created'
+
+    updates = {
+        field: value
+        for field, value in defaults.items()
+        if getattr(contract, field) != value
+    }
+
+    if not updates:
+        return 'unchanged'
+
+    for field, value in updates.items():
+        setattr(contract, field, value)
+    contract.save(update_fields=[*updates.keys()])
+
+    return 'updated'
 
 
 def save_company(inn, name, kpp='', ogrn=''):
@@ -495,6 +551,26 @@ def format_date(value):
 
 def digits_only(value):
     return ''.join(char for char in clean(value) if char.isdigit())
+
+
+def normalize_inn(value):
+    value = clean(value)
+    digit_groups = re.findall(r'\d+', value)
+
+    for group in digit_groups:
+        if len(group) in (10, 12):
+            return group
+
+    digits = ''.join(digit_groups)
+
+    if len(digits) in (10, 12):
+        return digits
+    if len(digits) > 12 and len(digits) % 10 == 0:
+        return digits[:10]
+    if len(digits) > 12 and len(digits) % 12 == 0:
+        return digits[:12]
+
+    return digits
 
 
 def looks_like_html(text):
