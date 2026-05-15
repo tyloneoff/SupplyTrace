@@ -281,8 +281,34 @@ th {
     width: 22%;
 }
 
+.tender-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin: 16px 0 18px;
+}
+
+.metric-card {
+    padding: 14px 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: #f8fafc;
+}
+
+.metric-card span {
+    display: block;
+    color: #64748b;
+    font-size: 14px;
+}
+
+.metric-card strong {
+    display: block;
+    margin-top: 8px;
+    font-size: 24px;
+}
+
 .contracts-table {
-    min-width: 920px;
+    min-width: 1320px;
 }
 
 .date-cell,

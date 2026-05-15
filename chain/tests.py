@@ -1,11 +1,16 @@
 from datetime import date
 from decimal import Decimal
+from io import StringIO
+from pathlib import Path
 from unittest.mock import patch
 
+from django.core.management import call_command
 from django.test import SimpleTestCase, TestCase, override_settings
+from django.utils import timezone
 
-from chain.models import Company, SyncLog
+from chain.models import Company, Contract, SyncLog
 from chain.services import zakupki
+from chain.services.analytics import get_tender_summary
 from chain.services.mos_zakupki import parse_mos_contract_item
 
 
@@ -139,6 +144,59 @@ class MosZakupkiParserTests(SimpleTestCase):
         self.assertEqual(contract.source_url, 'https://zakupki.mos.ru/contract/216611478')
 
 
+class TenderSummaryTests(TestCase):
+    def test_counts_open_closed_and_disclosed_winners(self):
+        company = Company.objects.create(inn=TARGET_INN, name='Компания')
+        customer = Company.objects.create(inn='7707083893', name='Заказчик')
+        supplier = Company.objects.create(inn='7705966893', name='Поставщик')
+
+        contracts = [
+            Contract.objects.create(
+                number='OPEN-1',
+                customer=customer,
+                supplier=company,
+                supplier_disclosed=True,
+            ),
+            Contract.objects.create(
+                number='OPEN-2',
+                customer=company,
+                supplier=supplier,
+                supplier_disclosed=True,
+            ),
+            Contract.objects.create(
+                number='CLOSED-1',
+                customer=company,
+                supplier=None,
+                is_closed=True,
+                supplier_disclosed=False,
+            ),
+        ]
+
+        summary = get_tender_summary(contracts)
+
+        self.assertEqual(summary, {
+            'total': 3,
+            'open_count': 2,
+            'closed_count': 1,
+            'known_winner_count': 2,
+            'undisclosed_winner_count': 1,
+        })
+
+
+class ImportContractsCsvTests(TestCase):
+    def test_demo_csv_still_imports_with_optional_supplier_fields(self):
+        csv_path = Path(__file__).resolve().parents[1] / 'data' / 'import' / 'contracts_demo.csv'
+        stdout = StringIO()
+
+        call_command('import_contracts_csv', str(csv_path), stdout=stdout)
+
+        self.assertEqual(Contract.objects.count(), 8)
+        closed_contract = Contract.objects.get(number='DEMO-2026-004')
+        self.assertTrue(closed_contract.is_closed)
+        self.assertFalse(closed_contract.supplier_disclosed)
+        self.assertIsNone(closed_contract.supplier)
+
+
 class CompanyViewTests(TestCase):
     def test_company_detail_rejects_invalid_inn(self):
         response = self.client.get('/company/not-an-inn/')
@@ -174,3 +232,22 @@ class CompanyViewTests(TestCase):
         self.assertEqual(log.status, Company.SYNC_STATUS_OK)
         self.assertEqual(log.fetched, 1)
         self.assertEqual(log.imported, 1)
+
+    @patch('chain.services.company_lookup.fetch_company_from_dadata', return_value=None)
+    def test_company_detail_shows_tender_block_and_closed_procurement_fallbacks(self, _fetch_company):
+        company = Company.objects.create(inn=TARGET_INN, name='Компания')
+        Contract.objects.create(
+            number='CLOSED-1',
+            customer=company,
+            supplier=None,
+            date=timezone.localdate(),
+            is_closed=True,
+            supplier_disclosed=False,
+        )
+
+        response = self.client.get(f'/company/{TARGET_INN}/')
+
+        self.assertContains(response, 'Тендеры и закупки')
+        self.assertContains(response, 'Закрытая закупка')
+        self.assertContains(response, 'Победитель не раскрыт')
+        self.assertContains(response, 'ИНН поставщика отсутствует')

@@ -3,41 +3,54 @@
     <table class="contracts-table">
         <thead>
         <tr>
+            <th>Номер / идентификатор</th>
             <th>Дата</th>
-            <th>Номер</th>
             <th>Предмет</th>
-            <th>Заказчик</th>
-            <th>Поставщик</th>
             <th>Сумма</th>
+            <th>Заказчик</th>
+            <th>ИНН заказчика</th>
+            <th>Поставщик / победитель</th>
+            <th>ИНН поставщика</th>
             <th>Статус</th>
-            <th>Ссылка</th>
+            <th>Источник / ссылка</th>
         </tr>
         </thead>
         <tbody>
         {% for contract in contracts %}
             <tr>
-                <td class="date-cell">{{ contract.date|date:'d.m.Y' }}</td>
                 <td>{{ contract.number }}</td>
+                <td class="date-cell">{{ contract.date|date:'d.m.Y'|default:'—' }}</td>
                 <td>{{ contract.title|default:'—' }}</td>
-                <td>{{ contract.customer.name }}<br><small>{{ contract.customer.inn }}</small></td>
+                <td class="amount-cell">{% if contract.price %}{{ contract.price|floatformat:2 }}{% else %}—{% endif %}</td>
+                <td>{{ contract.customer.name }}</td>
+                <td>{{ contract.customer.inn }}</td>
                 <td>
-                    {% if contract.supplier and contract.supplier_disclosed %}
-                        {{ contract.supplier.name }}<br><small>{{ contract.supplier.inn }}</small>
+                    {% if contract.has_known_supplier %}
+                        {{ contract.supplier_display_name }}
                     {% else %}
-                        <span class="closed-label">Победитель не раскрыт</span>
+                        <span class="closed-label">{{ contract.supplier_display_name }}</span>
                     {% endif %}
                 </td>
-                <td class="amount-cell">{% if contract.price %}{{ contract.price|floatformat:2 }}{% else %}—{% endif %}</td>
+                <td>
+                    {% if contract.has_known_supplier %}
+                        {{ contract.supplier_inn_display }}
+                    {% else %}
+                        <span class="closed-label">{{ contract.supplier_inn_display }}</span>
+                    {% endif %}
+                </td>
                 <td class="status-cell">
                     {% if contract.is_closed %}
-                        <span class="closed-label">Закрытый тендер</span>
+                        <span class="closed-label">{{ contract.procurement_status_display }}</span>
                     {% else %}
-                        Открытый
+                        {{ contract.procurement_status_display }}
                     {% endif %}
                 </td>
                 <td class="source-link-cell">
+                    {% if contract.source_display_name %}
+                        {{ contract.source_display_name }}<br>
+                    {% endif %}
                     {% if contract.purchase_url %}
-                        <a href="{{ contract.purchase_url }}" target="_blank">Открыть</a>
+                        <a href="{{ contract.purchase_url }}" target="_blank">Открыть источник</a>
                     {% else %}
                         —
                     {% endif %}
@@ -51,6 +64,6 @@
     {% if company and not company.last_synced_at %}
         <p>Список появится после поиска данных в публичных источниках.</p>
     {% else %}
-        <p>Контракты не найдены.</p>
+        <p>Тендеры и закупки за последний год не найдены.</p>
     {% endif %}
 {% endif %}

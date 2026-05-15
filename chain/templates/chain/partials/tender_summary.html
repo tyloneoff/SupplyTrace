@@ -1,0 +1,22 @@
+<div class="tender-summary-grid">
+    <div class="metric-card">
+        <span>Всего за последний год</span>
+        <strong>{{ tender_summary.total }}</strong>
+    </div>
+    <div class="metric-card">
+        <span>Открытых</span>
+        <strong>{{ tender_summary.open_count }}</strong>
+    </div>
+    <div class="metric-card">
+        <span>Закрытых</span>
+        <strong>{{ tender_summary.closed_count }}</strong>
+    </div>
+    <div class="metric-card">
+        <span>С известным победителем</span>
+        <strong>{{ tender_summary.known_winner_count }}</strong>
+    </div>
+    <div class="metric-card">
+        <span>Без раскрытого победителя</span>
+        <strong>{{ tender_summary.undisclosed_winner_count }}</strong>
+    </div>
+</div>

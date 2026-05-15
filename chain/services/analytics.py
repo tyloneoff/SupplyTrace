@@ -50,6 +50,20 @@ def get_counterparty_stats(company, contracts):
     )
 
 
+def get_tender_summary(contracts):
+    total = len(contracts)
+    closed_count = sum(1 for contract in contracts if contract.is_closed)
+    known_winner_count = sum(1 for contract in contracts if contract.has_known_supplier)
+
+    return {
+        'total': total,
+        'open_count': total - closed_count,
+        'closed_count': closed_count,
+        'known_winner_count': known_winner_count,
+        'undisclosed_winner_count': total - known_winner_count,
+    }
+
+
 def get_counterparty_info(company, contract):
     if contract.customer_id == company.id:
         if contract.supplier and contract.supplier_disclosed:
@@ -67,7 +81,7 @@ def get_counterparty_info(company, contract):
             'company': None,
             'display_name': 'Победитель не раскрыт',
             'inn': '',
-            'role': 'Закрытый тендер',
+            'role': 'Закрытая закупка',
             'is_closed': True,
         }
 
@@ -167,7 +181,7 @@ def build_graph_data(company, contracts, limit=10, contract_limit=30):
                 f'Дата: {contract.date or "не указана"}<br>'
                 f'Предмет: {contract.title or "не указан"}<br>'
                 f'Сумма: {format_price(contract.price)}<br>'
-                f'Статус: {"закрытый тендер" if contract.is_closed else "открытый контракт"}'
+                f'Статус: {contract.procurement_status_display.lower()}'
             ),
         })
 
@@ -228,7 +242,7 @@ def build_counterparty_label(info):
 
 def build_counterparty_title(info):
     if info['is_closed']:
-        return 'Закрытый тендер<br>Победитель или поставщик не раскрыт'
+        return 'Закрытая закупка<br>Победитель или поставщик не раскрыт'
     return f'{info["display_name"]}<br>ИНН: {info["inn"]}<br>Роль: {info["role"]}'
 
 

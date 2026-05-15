@@ -33,6 +33,7 @@
     <h2>Краткое резюме</h2>
     <p>
         За последний год найдено {{ contracts|length }} закупок/контрактов.
+        Открытых: {{ tender_summary.open_count }}, закрытых: {{ tender_summary.closed_count }}.
         Уникальных контрагентов: {{ graph_data.total_count }}.
         На графе показано {{ graph_data.contracts_shown_count }} ключевых связей.
     </p>
@@ -47,6 +48,25 @@
 </section>
 
 <section class="card">
+    <h2>Тендеры и закупки</h2>
+    {% include 'chain/partials/tender_summary.html' with tender_summary=tender_summary %}
+    {% include 'chain/partials/contracts_table.html' with contracts=contracts %}
+</section>
+
+<section class="card">
+    <h2>Частота участия в закупках и контрактах</h2>
+    {% if stats %}
+        <ol>
+            {% for item in stats %}
+                <li>{{ item.display_name }} — участий: {{ item.count }}, сумма {{ item.total_price|floatformat:2 }}</li>
+            {% endfor %}
+        </ol>
+    {% else %}
+        <p>Нет данных.</p>
+    {% endif %}
+</section>
+
+<section class="card">
     <h2>Граф цепочки</h2>
     {% if contracts %}
         <div id="graph"></div>
@@ -56,23 +76,5 @@
     {% else %}
         <p>Нет данных для построения графа.</p>
     {% endif %}
-</section>
-
-<section class="card">
-    <h2>Частые контрагенты</h2>
-    {% if stats %}
-        <ol>
-            {% for item in stats %}
-                <li>{{ item.display_name }} — {{ item.count }} контракт(ов), сумма {{ item.total_price|floatformat:2 }}</li>
-            {% endfor %}
-        </ol>
-    {% else %}
-        <p>Нет данных.</p>
-    {% endif %}
-</section>
-
-<section class="card">
-    <h2>Контракты</h2>
-    {% include 'chain/partials/contracts_table.html' with contracts=contracts %}
 </section>
 {% endblock %}

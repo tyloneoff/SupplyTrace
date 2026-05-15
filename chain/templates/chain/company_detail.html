@@ -117,6 +117,13 @@
 </section>
 
 <section class="card">
+    <h2>Тендеры и закупки</h2>
+
+    {% include 'chain/partials/tender_summary.html' with tender_summary=tender_summary %}
+    {% include 'chain/partials/contracts_table.html' with contracts=contracts %}
+</section>
+
+<section class="card">
     <h2>Граф цепочки</h2>
 
     {% if contracts %}
@@ -148,17 +155,17 @@
 </section>
 
 <section class="card">
-    <h2>Частота участия контрагентов</h2>
+    <h2>Частота участия в закупках и контрактах</h2>
 
     {% if stats %}
         <div class="table-wrap">
             <table class="stats-table">
                 <thead>
                 <tr>
-                    <th>Контрагент</th>
+                    <th>Участник</th>
                     <th>ИНН</th>
                     <th>Роль</th>
-                    <th>Кол-во контрактов</th>
+                    <th>Кол-во участий</th>
                     <th>Сумма</th>
                 </tr>
                 </thead>
@@ -183,11 +190,5 @@
             <p>Нет данных для статистики.</p>
         {% endif %}
     {% endif %}
-</section>
-
-<section class="card">
-    <h2>Контракты за последний год</h2>
-
-    {% include 'chain/partials/contracts_table.html' with contracts=contracts %}
 </section>
 {% endblock %}

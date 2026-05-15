@@ -2,7 +2,12 @@ from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from .forms import InnSearchForm
 from .models import Company, SearchHistory
-from .services.analytics import build_graph_data, get_company_contracts, get_counterparty_stats
+from .services.analytics import (
+    build_graph_data,
+    get_company_contracts,
+    get_counterparty_stats,
+    get_tender_summary,
+)
 from .services.company_lookup import get_or_create_company_by_inn
 from .services.public_sources import record_sync_result, sync_public_contracts_by_inn
 from .services.zakupki import digits_only
@@ -57,12 +62,14 @@ def company_detail(request, inn):
 
     contracts = get_company_contracts(company)
     stats = get_counterparty_stats(company, contracts)
+    tender_summary = get_tender_summary(contracts)
     graph_data = build_graph_data(company, contracts)
 
     return render(request, 'chain/company_detail.html', {
         'company': company,
         'contracts': contracts,
         'stats': stats,
+        'tender_summary': tender_summary,
         'graph_data': graph_data,
         'sync_result': sync_result,
     })
@@ -102,12 +109,14 @@ def report(request, inn):
 
     contracts = get_company_contracts(company)
     stats = get_counterparty_stats(company, contracts)
+    tender_summary = get_tender_summary(contracts)
     graph_data = build_graph_data(company, contracts)
 
     return render(request, 'chain/report.html', {
         'company': company,
         'contracts': contracts,
         'stats': stats,
+        'tender_summary': tender_summary,
         'graph_data': graph_data,
         'sync_result': sync_result,
     })

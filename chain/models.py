@@ -75,6 +75,40 @@ class Contract(models.Model):
     def __str__(self):
         return self.number
 
+    @property
+    def has_known_supplier(self):
+        return bool(self.supplier_id and self.supplier_disclosed)
+
+    @property
+    def supplier_display_name(self):
+        if self.has_known_supplier:
+            return self.supplier.name
+        return 'Победитель не раскрыт'
+
+    @property
+    def supplier_inn_display(self):
+        if self.has_known_supplier and self.supplier.inn:
+            return self.supplier.inn
+        return 'ИНН поставщика отсутствует'
+
+    @property
+    def procurement_status_display(self):
+        return 'Закрытая закупка' if self.is_closed else 'Открытая закупка'
+
+    @property
+    def source_display_name(self):
+        if self.source_file.startswith('zakupki.gov.ru'):
+            return 'zakupki.gov.ru'
+        if self.source_file.startswith('zakupki.mos.ru'):
+            return 'zakupki.mos.ru'
+        if self.source_file:
+            return self.source_file
+        if 'zakupki.gov.ru' in self.purchase_url:
+            return 'zakupki.gov.ru'
+        if 'zakupki.mos.ru' in self.purchase_url:
+            return 'zakupki.mos.ru'
+        return ''
+
 
 class SearchHistory(models.Model):
     inn = models.CharField('ИНН', max_length=12, db_index=True)
