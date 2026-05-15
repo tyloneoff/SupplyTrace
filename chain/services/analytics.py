@@ -179,6 +179,7 @@ def build_graph_data(company, contracts, limit=10, contract_limit=30):
             'title': (
                 f'Номер: {contract.number}<br>'
                 f'Дата: {contract.date or "не указана"}<br>'
+                f'Дата исполнения: {contract.execution_date or "не указана"}<br>'
                 f'Предмет: {contract.title or "не указан"}<br>'
                 f'Сумма: {format_price(contract.price)}<br>'
                 f'Статус: {contract.procurement_status_display.lower()}'

@@ -87,6 +87,13 @@ FIELD_ALIASES = {
         'contract date',
         'date',
     ),
+    'execution_date': (
+        'дата исполнения контракта по контракту',
+        'дата исполнения контракта',
+        'дата исполнения',
+        'срок исполнения',
+        'execution date',
+    ),
     'price': (
         'цена контракта',
         'цена заключенных контрактов',
@@ -152,6 +159,7 @@ class ContractData:
     title: str
     price: Decimal
     date: object
+    execution_date: object
     customer_inn: str
     customer_name: str
     customer_kpp: str
@@ -394,6 +402,7 @@ def parse_contract_row(row):
         title=clean(get_field(normalized_row, 'title')),
         price=parse_price(get_field(normalized_row, 'price')),
         date=parse_date(get_field(normalized_row, 'date')),
+        execution_date=parse_date(get_field(normalized_row, 'execution_date')),
         customer_inn=customer_inn,
         customer_name=clean(get_field(normalized_row, 'customer_name')) or f'Компания {customer_inn}',
         customer_kpp=digits_only(get_field(normalized_row, 'customer_kpp')),
@@ -439,6 +448,7 @@ def save_contract(contract_data, source_file):
         'title': contract_data.title,
         'price': contract_data.price,
         'date': contract_data.date,
+        'execution_date': contract_data.execution_date,
         'purchase_url': contract_data.source_url or build_contract_url(contract_data.number),
         'source_file': source_file,
         'is_closed': contract_data.is_closed,

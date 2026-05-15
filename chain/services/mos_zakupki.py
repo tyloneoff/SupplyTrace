@@ -153,6 +153,11 @@ def parse_mos_contract_item(item):
         title=clean(item.get('subject')),
         price=parse_mos_price(item.get('rubSum')),
         date=parse_mos_date(item.get('conclusionDate')),
+        execution_date=parse_optional_mos_date(
+            item.get('executionDate')
+            or item.get('completionDate')
+            or item.get('endDate')
+        ),
         customer_inn=customer_inn,
         customer_name=clean(customer.get('name')) or f'Компания {customer_inn}',
         customer_kpp=digits_only(customer.get('kpp')),
@@ -202,6 +207,12 @@ def parse_mos_date(value):
             continue
 
     raise ValueError(f'некорректная дата: {value}')
+
+
+def parse_optional_mos_date(value):
+    if value in (None, ''):
+        return None
+    return parse_mos_date(value)
 
 
 def to_json(value):

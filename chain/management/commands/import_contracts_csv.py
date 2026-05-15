@@ -94,6 +94,7 @@ class Command(BaseCommand):
                 'title': clean(row.get('title')),
                 'price': parse_price(row.get('price')),
                 'date': parse_date(row.get('date')),
+                'execution_date': parse_date(row.get('execution_date')),
                 'purchase_url': clean(row.get('purchase_url')),
                 'source_file': source_file,
                 'is_closed': is_closed,

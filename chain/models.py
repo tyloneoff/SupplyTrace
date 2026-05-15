@@ -41,6 +41,7 @@ class Contract(models.Model):
     title = models.CharField('Предмет контракта', max_length=1000, blank=True)
     price = models.DecimalField('Сумма', max_digits=18, decimal_places=2, default=0)
     date = models.DateField('Дата заключения', null=True, blank=True, db_index=True)
+    execution_date = models.DateField('Дата исполнения', null=True, blank=True)
     customer = models.ForeignKey(
         Company,
         verbose_name='Заказчик',

@@ -5,6 +5,7 @@
         <tr>
             <th>Номер / идентификатор</th>
             <th>Дата</th>
+            <th>Дата исполнения</th>
             <th>Предмет</th>
             <th>Сумма</th>
             <th>Заказчик</th>
@@ -20,6 +21,7 @@
             <tr>
                 <td>{{ contract.number }}</td>
                 <td class="date-cell">{{ contract.date|date:'d.m.Y'|default:'—' }}</td>
+                <td class="date-cell">{{ contract.execution_date|date:'d.m.Y'|default:'—' }}</td>
                 <td>{{ contract.title|default:'—' }}</td>
                 <td class="amount-cell">{% if contract.price %}{{ contract.price|floatformat:2 }}{% else %}—{% endif %}</td>
                 <td>{{ contract.customer.name }}</td>

@@ -52,6 +52,7 @@ class ZakupkiParserTests(SimpleTestCase):
         self.assertEqual(contract.title, 'Поставка сантехнических товаров')
         self.assertEqual(contract.price, Decimal('738384.95'))
         self.assertEqual(contract.date, date(2026, 4, 13))
+        self.assertEqual(contract.execution_date, date(2026, 7, 17))
         self.assertFalse(contract.is_closed)
         self.assertTrue(contract.supplier_disclosed)
 
@@ -123,6 +124,7 @@ class MosZakupkiParserTests(SimpleTestCase):
             'subject': 'Поставка строительных тачек',
             'rubSum': 15456.25,
             'conclusionDate': '11.05.2026 17:33:32',
+            'executionDate': '21.05.2026 17:33:32',
             'entityId': 216611478,
             'customer': {
                 'inn': '7751335162',
@@ -141,6 +143,7 @@ class MosZakupkiParserTests(SimpleTestCase):
         self.assertEqual(contract.supplier_inn, '7724489149')
         self.assertEqual(contract.price, Decimal('15456.25'))
         self.assertEqual(contract.date, date(2026, 5, 11))
+        self.assertEqual(contract.execution_date, date(2026, 5, 21))
         self.assertEqual(contract.source_url, 'https://zakupki.mos.ru/contract/216611478')
 
 
@@ -195,6 +198,33 @@ class ImportContractsCsvTests(TestCase):
         self.assertTrue(closed_contract.is_closed)
         self.assertFalse(closed_contract.supplier_disclosed)
         self.assertIsNone(closed_contract.supplier)
+        self.assertIsNone(closed_contract.execution_date)
+
+
+class DemoDatasetSmokeTests(TestCase):
+    DEMO_INNS = (
+        '7729040491',
+        '7705966893',
+        '7710349494',
+        '7707083893',
+        '9731073530',
+        '760406370881',
+        '2634035198',
+        '3500004094',
+    )
+
+    @classmethod
+    def setUpTestData(cls):
+        data_dir = Path(__file__).resolve().parents[1] / 'data' / 'import'
+        call_command('import_contracts_csv', str(data_dir / 'contracts_demo.csv'), stdout=StringIO())
+        call_command('import_contracts_csv', str(data_dir / 'contracts_eis_demo_mirea_30.csv'), stdout=StringIO())
+
+    def test_demo_inn_pages_render(self):
+        for inn in self.DEMO_INNS:
+            with self.subTest(inn=inn):
+                response = self.client.get(f'/company/{inn}/')
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, 'Тендеры и закупки')
 
 
 class CompanyViewTests(TestCase):
@@ -248,6 +278,7 @@ class CompanyViewTests(TestCase):
         response = self.client.get(f'/company/{TARGET_INN}/')
 
         self.assertContains(response, 'Тендеры и закупки')
+        self.assertContains(response, 'Дата исполнения')
         self.assertContains(response, 'Закрытая закупка')
         self.assertContains(response, 'Победитель не раскрыт')
         self.assertContains(response, 'ИНН поставщика отсутствует')

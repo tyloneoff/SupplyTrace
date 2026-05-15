@@ -11,9 +11,9 @@ class CompanyAdmin(admin.ModelAdmin):
 
 @admin.register(Contract)
 class ContractAdmin(admin.ModelAdmin):
-    list_display = ('number', 'date', 'price', 'customer', 'supplier', 'is_closed', 'supplier_disclosed')
+    list_display = ('number', 'date', 'execution_date', 'price', 'customer', 'supplier', 'is_closed', 'supplier_disclosed')
     search_fields = ('number', 'customer__name', 'customer__inn', 'supplier__name', 'supplier__inn')
-    list_filter = ('date', 'is_closed', 'supplier_disclosed')
+    list_filter = ('date', 'execution_date', 'is_closed', 'supplier_disclosed')
 
 
 @admin.register(SearchHistory)
