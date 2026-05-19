@@ -1,5 +1,6 @@
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
+from django.views.decorators.cache import never_cache
 from .forms import InnSearchForm
 from .models import Company, SearchHistory
 from .services.analytics import (
@@ -9,11 +10,14 @@ from .services.analytics import (
     get_tender_summary,
 )
 from .services.company_lookup import get_or_create_company_by_inn
+from .services.local_retention import purge_expired_local_data
 from .services.public_sources import record_sync_result, sync_public_contracts_by_inn
 from .services.zakupki import digits_only
 
 
+@never_cache
 def index(request):
+    purge_expired_local_data()
     form = InnSearchForm(request.POST or None)
 
     if request.method == 'POST' and form.is_valid():
@@ -28,7 +32,9 @@ def index(request):
     })
 
 
+@never_cache
 def company_detail(request, inn):
+    purge_expired_local_data()
     clean_inn = digits_only(inn)
     if not is_valid_inn(clean_inn):
         return render(
@@ -75,12 +81,16 @@ def company_detail(request, inn):
     })
 
 
+@never_cache
 def history(request):
+    purge_expired_local_data()
     searches = SearchHistory.objects.all()[:100]
     return render(request, 'chain/history.html', {'searches': searches})
 
 
+@never_cache
 def report(request, inn):
+    purge_expired_local_data()
     clean_inn = digits_only(inn)
     if not is_valid_inn(clean_inn):
         return render(
@@ -112,7 +122,7 @@ def report(request, inn):
     tender_summary = get_tender_summary(contracts)
     graph_data = build_graph_data(company, contracts)
 
-    return render(request, 'chain/report.html', {
+    response = render(request, 'chain/report.html', {
         'company': company,
         'contracts': contracts,
         'stats': stats,
@@ -121,8 +131,15 @@ def report(request, inn):
         'sync_result': sync_result,
     })
 
+    if request.GET.get('download') == '1':
+        response['Content-Disposition'] = f'attachment; filename="supplytrace_report_{company.inn}.html"'
 
+    return response
+
+
+@never_cache
 def company_graph_json(request, inn):
+    purge_expired_local_data()
     clean_inn = digits_only(inn)
     if not is_valid_inn(clean_inn):
         return JsonResponse({'error': 'Некорректный ИНН'}, status=400)

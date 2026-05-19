@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from io import StringIO
 from pathlib import Path
@@ -8,10 +8,22 @@ from django.core.management import call_command
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils import timezone
 
-from chain.models import Company, Contract, SyncLog
+from chain.models import Company, Contract, SearchHistory, SyncLog
 from chain.services import zakupki
-from chain.services.analytics import get_tender_summary
+from chain.services.analytics import build_graph_data, get_tender_summary
+from chain.services.local_retention import purge_expired_local_data
+from chain.services.public_sources import PUBLIC_SOURCE_PROVIDERS, PUBLIC_SOURCES
 from chain.services.mos_zakupki import parse_mos_contract_item
+from chain.services.sberbank_ast import (
+    SberbankAstAccessBlocked,
+    parse_sberbank_ast_entries,
+    sync_sberbank_ast_contracts_by_inn,
+)
+from chain.services.tektorg import (
+    parse_tektorg_procedure,
+    parse_tektorg_soap_response,
+    sync_tektorg_contracts_by_inn,
+)
 
 
 TARGET_INN = '7729040491'
@@ -40,6 +52,79 @@ def zakupki_row(
         'Информация о поставщиках (исполнителях, подрядчиках) по контракту: КПП': "'482101001'",
         'Дата исполнения контракта: по контракту': '17.07.2026',
     }
+
+
+def tektorg_soap_response():
+    return '''
+        <?xml version="1.0" encoding="UTF-8"?>
+        <SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/">
+          <SOAP-ENV:Body>
+            <SOAP-ENV:proceduresResponse>
+              <totalProcedures>1</totalProcedures>
+              <currentPage>1</currentPage>
+              <totalPage>1</totalPage>
+              <limitProceduresInPage>1</limitProceduresInPage>
+              <sectionName>МИРЭА</sectionName>
+              <sectionCode>mirea_44</sectionCode>
+              <procedures>
+                <procedure id="848551">
+                  <remoteId>848551</remoteId>
+                  <url_to_showcase>https://www.tektorg.ru/44-fz/procedures/19097811</url_to_showcase>
+                  <registryNumber>0373100029526000128</registryNumber>
+                  <title>Поставка мебели</title>
+                  <datePublished>2026-05-19T15:18:49+03:00</datePublished>
+                  <organizer>
+                    <id>33663</id>
+                    <fullName>ФЕДЕРАЛЬНОЕ ГОСУДАРСТВЕННОЕ БЮДЖЕТНОЕ ОБРАЗОВАТЕЛЬНОЕ УЧРЕЖДЕНИЕ ВЫСШЕГО ОБРАЗОВАНИЯ "МИРЭА"</fullName>
+                    <inn>7729040491</inn>
+                  </organizer>
+                  <lots>
+                    <lot id="22204972">
+                      <remoteId>848551</remoteId>
+                      <number>1</number>
+                      <subject>Поставка мебели</subject>
+                      <startPrice>8629844.5</startPrice>
+                      <status>Приём заявок</status>
+                      <customers>
+                        <customer>
+                          <id>-33663</id>
+                          <fullName>ФЕДЕРАЛЬНОЕ ГОСУДАРСТВЕННОЕ БЮДЖЕТНОЕ ОБРАЗОВАТЕЛЬНОЕ УЧРЕЖДЕНИЕ ВЫСШЕГО ОБРАЗОВАНИЯ "МИРЭА"</fullName>
+                          <inn>7729040491</inn>
+                        </customer>
+                      </customers>
+                    </lot>
+                  </lots>
+                </procedure>
+              </procedures>
+            </SOAP-ENV:proceduresResponse>
+          </SOAP-ENV:Body>
+        </SOAP-ENV:Envelope>
+    '''
+
+
+def sberbank_ast_html_response():
+    return '''
+        <html>
+          <body>
+            <table>
+              <tr>
+                <th>Номер</th>
+                <th>Заказчик</th>
+                <th>Предмет</th>
+                <th>Дата</th>
+                <th>НМЦ</th>
+              </tr>
+              <tr>
+                <td><a href="/SB/Purchase/Details/42">SBR035-260000042</a></td>
+                <td>ФГБОУ ВО "МИРЭА", ИНН 7729040491</td>
+                <td>Поставка серверного оборудования</td>
+                <td>19.05.2026</td>
+                <td>1 250 000,50 руб.</td>
+              </tr>
+            </table>
+          </body>
+        </html>
+    '''
 
 
 class ZakupkiParserTests(SimpleTestCase):
@@ -147,6 +232,126 @@ class MosZakupkiParserTests(SimpleTestCase):
         self.assertEqual(contract.source_url, 'https://zakupki.mos.ru/contract/216611478')
 
 
+class TekTorgParserTests(SimpleTestCase):
+    def test_parse_tektorg_soap_response_and_procedure(self):
+        procedures = parse_tektorg_soap_response(tektorg_soap_response())
+
+        self.assertEqual(len(procedures), 1)
+
+        contracts = parse_tektorg_procedure(procedures[0], TARGET_INN)
+
+        self.assertEqual(len(contracts), 1)
+        contract = contracts[0]
+        self.assertEqual(contract.number, '0373100029526000128')
+        self.assertEqual(contract.customer_inn, TARGET_INN)
+        self.assertEqual(
+            contract.customer_name,
+            'ФЕДЕРАЛЬНОЕ ГОСУДАРСТВЕННОЕ БЮДЖЕТНОЕ ОБРАЗОВАТЕЛЬНОЕ УЧРЕЖДЕНИЕ ВЫСШЕГО ОБРАЗОВАНИЯ "МИРЭА"',
+        )
+        self.assertEqual(contract.title, 'Поставка мебели')
+        self.assertEqual(contract.price, Decimal('8629844.5'))
+        self.assertEqual(contract.date, date(2026, 5, 19))
+        self.assertEqual(contract.source_url, 'https://www.tektorg.ru/44-fz/procedures/19097811')
+        self.assertFalse(contract.is_closed)
+        self.assertFalse(contract.supplier_disclosed)
+
+    def test_parse_tektorg_empty_customer_fault_as_empty_result(self):
+        procedures = parse_tektorg_soap_response('''
+            <Envelope>
+              <Body>
+                <Fault>
+                  <faultcode>SOAP-ENV:Client</faultcode>
+                  <faultstring>Customers not found by INN.</faultstring>
+                </Fault>
+              </Body>
+            </Envelope>
+        ''')
+
+        self.assertEqual(procedures, [])
+
+    @override_settings(
+        TEKTORG_SYNC_ENABLED=True,
+        TEKTORG_SECTION_CODES='mirea_44',
+        ZAKUPKI_CONTRACTS_LIMIT=100,
+        ZAKUPKI_CONTRACT_LOOKBACK_DAYS=365,
+    )
+    @patch('chain.services.tektorg.save_contract')
+    @patch('chain.services.tektorg.fetch_procedures')
+    def test_sync_tektorg_contracts_by_inn_saves_customer_procedures(self, fetch_procedures, save_contract):
+        fetch_procedures.return_value = parse_tektorg_soap_response(tektorg_soap_response())
+        save_contract.return_value = 'created'
+
+        result = sync_tektorg_contracts_by_inn(TARGET_INN, limit=5)
+
+        self.assertEqual(result.fetched, 1)
+        self.assertEqual(result.imported, 1)
+        self.assertEqual(result.updated, 0)
+        self.assertEqual(result.unchanged, 0)
+        self.assertFalse(result.has_errors)
+
+        saved_contract = save_contract.call_args.args[0]
+        self.assertEqual(saved_contract.number, '0373100029526000128')
+        self.assertEqual(save_contract.call_args.kwargs['source_file'], 'tektorg.ru:customer:mirea_44')
+
+
+class SberbankAstParserTests(SimpleTestCase):
+    def test_parse_sberbank_ast_public_html_row(self):
+        entries = parse_sberbank_ast_entries(
+            sberbank_ast_html_response(),
+            TARGET_INN,
+            'https://utp.sberbank-ast.ru/SB/List/PurchaseList',
+        )
+
+        self.assertEqual(len(entries), 1)
+        contract = entries[0]
+        self.assertEqual(contract.number, 'SBR035-260000042')
+        self.assertEqual(contract.customer_inn, TARGET_INN)
+        self.assertEqual(contract.customer_name, 'ФГБОУ ВО "МИРЭА"')
+        self.assertEqual(contract.title, 'Поставка серверного оборудования')
+        self.assertEqual(contract.price, Decimal('1250000.50'))
+        self.assertEqual(contract.date, date(2026, 5, 19))
+        self.assertEqual(contract.source_url, 'https://utp.sberbank-ast.ru/SB/Purchase/Details/42')
+        self.assertFalse(contract.supplier_disclosed)
+
+    def test_parse_sberbank_ast_access_block_as_warning(self):
+        with self.assertRaises(SberbankAstAccessBlocked):
+            parse_sberbank_ast_entries(
+                'Действия блокированы защитой ЭТП. Посторонее ПО.',
+                TARGET_INN,
+            )
+
+    def test_parse_sberbank_ast_login_page_as_warning(self):
+        with self.assertRaises(SberbankAstAccessBlocked):
+            parse_sberbank_ast_entries(
+                '<html><form action="./Login.aspx"><input id="mainContent_txtPassword"></form></html>',
+                TARGET_INN,
+            )
+
+    @override_settings(
+        SBERBANK_AST_SYNC_ENABLED=True,
+        SBERBANK_AST_REGISTRY_URLS='https://utp.sberbank-ast.ru/SB/List/PurchaseList',
+        ZAKUPKI_CONTRACTS_LIMIT=100,
+        ZAKUPKI_CONTRACT_LOOKBACK_DAYS=365,
+    )
+    @patch('chain.services.sberbank_ast.save_contract')
+    @patch('chain.services.sberbank_ast.fetch_registry_html')
+    def test_sync_sberbank_ast_contracts_by_inn_saves_public_html_entries(
+        self,
+        fetch_registry_html,
+        save_contract,
+    ):
+        fetch_registry_html.return_value = sberbank_ast_html_response()
+        save_contract.return_value = 'created'
+
+        result = sync_sberbank_ast_contracts_by_inn(TARGET_INN, limit=5)
+
+        self.assertEqual(result.fetched, 1)
+        self.assertEqual(result.imported, 1)
+        self.assertFalse(result.has_errors)
+        self.assertEqual(save_contract.call_args.args[0].number, 'SBR035-260000042')
+        self.assertEqual(save_contract.call_args.kwargs['source_file'], 'sberbank-ast.ru:customer')
+
+
 class TenderSummaryTests(TestCase):
     def test_counts_open_closed_and_disclosed_winners(self):
         company = Company.objects.create(inn=TARGET_INN, name='Компания')
@@ -184,6 +389,123 @@ class TenderSummaryTests(TestCase):
             'known_winner_count': 2,
             'undisclosed_winner_count': 1,
         })
+
+
+class LocalRetentionTests(TestCase):
+    @override_settings(SUPPLYTRACE_LOCAL_DATA_TTL_HOURS=1)
+    def test_purge_expired_local_data_removes_old_business_records(self):
+        old_time = timezone.now() - timedelta(hours=2)
+        company = Company.objects.create(inn=TARGET_INN, name='Компания')
+        supplier = Company.objects.create(inn='7705966893', name='Поставщик')
+        contract = Contract.objects.create(
+            number='OLD-1',
+            customer=company,
+            supplier=supplier,
+            date=timezone.localdate(),
+        )
+        search = SearchHistory.objects.create(inn=TARGET_INN)
+        sync_log = SyncLog.objects.create(
+            inn=TARGET_INN,
+            company=company,
+            status=Company.SYNC_STATUS_OK,
+        )
+
+        Company.objects.filter(id__in=[company.id, supplier.id]).update(created_at=old_time)
+        Contract.objects.filter(id=contract.id).update(imported_at=old_time)
+        SearchHistory.objects.filter(id=search.id).update(created_at=old_time)
+        SyncLog.objects.filter(id=sync_log.id).update(created_at=old_time)
+
+        result = purge_expired_local_data(now=timezone.now())
+
+        self.assertEqual(result['contracts'], 1)
+        self.assertEqual(result['searches'], 1)
+        self.assertEqual(result['sync_logs'], 1)
+        self.assertEqual(Contract.objects.count(), 0)
+        self.assertEqual(SearchHistory.objects.count(), 0)
+        self.assertEqual(SyncLog.objects.count(), 0)
+
+
+class GraphDataTests(TestCase):
+    def test_graph_nodes_are_draggable_and_tooltips_include_contract_details(self):
+        company = Company.objects.create(inn=TARGET_INN, name='Центральная компания')
+        supplier = Company.objects.create(inn='7705966893', name='ООО Поставщик')
+
+        contract = Contract.objects.create(
+            number='OPEN-42',
+            title='Поставка оборудования',
+            price=Decimal('150000.50'),
+            date=timezone.localdate(),
+            customer=company,
+            supplier=supplier,
+            source_file='zakupki.gov.ru:customer',
+            purchase_url='https://zakupki.gov.ru/example',
+        )
+
+        graph_data = build_graph_data(company, [contract])
+
+        self.assertTrue(graph_data['nodes'])
+        self.assertTrue(graph_data['edges'])
+        self.assertEqual(graph_data['mode'], 'detailed')
+        self.assertTrue(all(node.get('fixed') is False for node in graph_data['nodes']))
+        self.assertIn('Роль: центральная компания', graph_data['nodes'][0]['title'])
+        self.assertIn('Связанных закупок/контрактов: 1', graph_data['nodes'][0]['title'])
+        self.assertIn('details', graph_data['nodes'][0])
+        self.assertNotIn('<br>', graph_data['edges'][0]['title'])
+
+        edge_titles = ' '.join(edge['title'] for edge in graph_data['edges'])
+        self.assertIn('OPEN-42', edge_titles)
+        self.assertIn('Поставка оборудования', edge_titles)
+        self.assertIn('Направление: Центральная компания → ООО Поставщик', edge_titles)
+        self.assertIn('Статус: открытая закупка', edge_titles)
+        self.assertIn('zakupki.gov.ru', edge_titles)
+
+    def test_graph_handles_closed_contract_without_supplier(self):
+        company = Company.objects.create(inn=TARGET_INN, name='Компания')
+        contract = Contract.objects.create(
+            number='CLOSED-42',
+            title='Закрытая поставка',
+            price=Decimal('250000'),
+            date=timezone.localdate(),
+            customer=company,
+            supplier=None,
+            is_closed=True,
+            supplier_disclosed=False,
+        )
+
+        graph_data = build_graph_data(company, [contract])
+        closed_titles = [
+            node['title']
+            for node in graph_data['nodes']
+            if node.get('group') == 'closed'
+        ]
+
+        self.assertTrue(closed_titles)
+        self.assertIn('Победитель не раскрыт', closed_titles[0])
+        self.assertIn('ИНН поставщика отсутствует', closed_titles[0])
+        self.assertIn('закрытая закупка', ' '.join(edge['title'] for edge in graph_data['edges']))
+
+    def test_graph_aggregates_large_contract_sets_by_counterparty(self):
+        company = Company.objects.create(inn=TARGET_INN, name='Компания')
+        supplier = Company.objects.create(inn='7705966893', name='Поставщик')
+        contracts = [
+            Contract(
+                number=f'OPEN-{index}',
+                title='Повторяющаяся поставка',
+                price=Decimal('1000'),
+                date=timezone.localdate(),
+                customer=company,
+                supplier=supplier,
+            )
+            for index in range(20)
+        ]
+
+        graph_data = build_graph_data(company, contracts)
+
+        self.assertEqual(graph_data['mode'], 'aggregated')
+        self.assertEqual(len([node for node in graph_data['nodes'] if node.get('group') == 'contract']), 0)
+        self.assertEqual(len(graph_data['edges']), 1)
+        self.assertEqual(graph_data['edges'][0]['details']['kind'], 'aggregate')
+        self.assertIn('Количество контрактов: 20', graph_data['edges'][0]['title'])
 
 
 class ImportContractsCsvTests(TestCase):
@@ -282,3 +604,52 @@ class CompanyViewTests(TestCase):
         self.assertContains(response, 'Закрытая закупка')
         self.assertContains(response, 'Победитель не раскрыт')
         self.assertContains(response, 'ИНН поставщика отсутствует')
+        self.assertContains(response, 'Настройка колонок')
+        self.assertContains(response, 'data-column-toggle="supplier"')
+        self.assertContains(response, 'Не выбрана ни одна колонка')
+        self.assertContains(response, 'class="side-nav"')
+        self.assertContains(response, 'href="#graph-section"')
+
+    @patch('chain.services.company_lookup.fetch_company_from_dadata', return_value=None)
+    def test_dynamic_business_pages_are_not_cached(self, _fetch_company):
+        Company.objects.create(inn=TARGET_INN, name='Компания')
+
+        for url in (
+            f'/company/{TARGET_INN}/',
+            f'/company/{TARGET_INN}/graph.json',
+            f'/report/{TARGET_INN}/',
+            '/history/',
+        ):
+            with self.subTest(url=url):
+                response = self.client.get(url)
+                self.assertEqual(response.status_code, 200)
+                cache_control = response.headers.get('Cache-Control', '')
+                self.assertIn('no-cache', cache_control)
+                self.assertIn('no-store', cache_control)
+                self.assertIn('must-revalidate', cache_control)
+
+    def test_public_sources_keep_provider_interface_and_legacy_tuple(self):
+        provider_names = [provider.name for provider in PUBLIC_SOURCE_PROVIDERS]
+        legacy_names = [name for name, _sync_func in PUBLIC_SOURCES]
+
+        self.assertEqual(provider_names, [
+            'ЕИС zakupki.gov.ru',
+            'Портал поставщиков Москвы',
+            'ТЭК-Торг',
+            'Sberbank AST',
+            'Bicotender',
+            'RTS-tender',
+        ])
+        self.assertEqual(legacy_names, provider_names)
+
+    @patch('chain.services.company_lookup.fetch_company_from_dadata', return_value=None)
+    def test_report_download_returns_attachment(self, _fetch_company):
+        Company.objects.create(inn=TARGET_INN, name='Компания')
+
+        response = self.client.get(f'/report/{TARGET_INN}/?download=1')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.headers['Content-Disposition'],
+            f'attachment; filename="supplytrace_report_{TARGET_INN}.html"',
+        )

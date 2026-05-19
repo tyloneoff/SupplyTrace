@@ -1,22 +1,50 @@
+from dataclasses import dataclass
+
 from django.utils import timezone
 
 from chain.models import Company, SyncLog
+from chain.services.external_platforms import (
+    sync_bicotender_contracts_by_inn,
+    sync_rts_tender_contracts_by_inn,
+)
 from chain.services.mos_zakupki import sync_mos_contracts_by_inn
+from chain.services.sberbank_ast import sync_sberbank_ast_contracts_by_inn
+from chain.services.tektorg import sync_tektorg_contracts_by_inn
 from chain.services.zakupki import ZakupkiSyncResult, sync_contracts_by_inn as sync_eis_contracts_by_inn
 
 
-PUBLIC_SOURCES = (
-    ('ЕИС zakupki.gov.ru', sync_eis_contracts_by_inn),
-    ('Портал поставщиков Москвы', sync_mos_contracts_by_inn),
+@dataclass(frozen=True)
+class PublicSourceProvider:
+    name: str
+    sync_func: object
+
+    def sync(self, inn, limit=None):
+        return self.sync_func(inn, limit=limit)
+
+
+PUBLIC_SOURCE_PROVIDERS = (
+    PublicSourceProvider('ЕИС zakupki.gov.ru', sync_eis_contracts_by_inn),
+    PublicSourceProvider('Портал поставщиков Москвы', sync_mos_contracts_by_inn),
+    PublicSourceProvider('ТЭК-Торг', sync_tektorg_contracts_by_inn),
+    PublicSourceProvider('Sberbank AST', sync_sberbank_ast_contracts_by_inn),
+    PublicSourceProvider('Bicotender', sync_bicotender_contracts_by_inn),
+    PublicSourceProvider('RTS-tender', sync_rts_tender_contracts_by_inn),
 )
+
+PUBLIC_SOURCES = tuple((provider.name, provider.sync_func) for provider in PUBLIC_SOURCE_PROVIDERS)
 
 
 def sync_public_contracts_by_inn(inn, limit=None):
     result = ZakupkiSyncResult(enabled=False)
 
-    for source_name, sync_func in PUBLIC_SOURCES:
-        source_result = sync_func(inn, limit=limit)
-        result.sources.append(build_source_status(source_name, source_result))
+    for provider in PUBLIC_SOURCE_PROVIDERS:
+        try:
+            source_result = provider.sync(inn, limit=limit)
+        except Exception as exc:
+            source_result = ZakupkiSyncResult()
+            source_result.errors.append(f'Источник "{provider.name}" временно недоступен: {exc}')
+
+        result.sources.append(build_source_status(provider.name, source_result))
 
         if not source_result.enabled:
             continue
@@ -50,6 +78,7 @@ def build_source_status(name, result):
         'unchanged': result.unchanged,
         'skipped': result.skipped,
         'errors': result.errors,
+        'message': result.errors[0] if result.errors else '',
     }
 
 

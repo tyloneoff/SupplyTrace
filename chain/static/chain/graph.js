@@ -8,12 +8,13 @@ document.addEventListener("DOMContentLoaded", function () {
 
     const graphData = JSON.parse(graphScript.textContent);
 
-    const nodes = new vis.DataSet(graphData.nodes || []);
-    const edges = new vis.DataSet(graphData.edges || []);
+    const isAggregated = graphData.mode === "aggregated";
+    const nodes = new vis.DataSet(prepareGraphItems(graphData.nodes || []));
+    const edges = new vis.DataSet(prepareGraphItems(graphData.edges || []));
 
     const options = {
         autoResize: true,
-        height: "500px",
+        height: isAggregated ? "560px" : "500px",
         width: "100%",
 
         physics: {
@@ -21,17 +22,23 @@ document.addEventListener("DOMContentLoaded", function () {
         },
 
         layout: {
-            improvedLayout: false
+            improvedLayout: false,
+            randomSeed: 7
         },
 
         interaction: {
             hover: true,
+            hoverConnectedEdges: true,
+            selectConnectedEdges: true,
             tooltipDelay: 150,
             dragNodes: true,
             dragView: true,
             zoomView: true,
             navigationButtons: false,
-            keyboard: false
+            keyboard: {
+                enabled: true,
+                bindToWindow: false
+            }
         },
 
         nodes: {
@@ -39,7 +46,7 @@ document.addEventListener("DOMContentLoaded", function () {
             margin: 10,
             widthConstraint: {
                 minimum: 120,
-                maximum: 210
+                maximum: isAggregated ? 240 : 210
             },
             font: {
                 size: 13,
@@ -47,7 +54,13 @@ document.addEventListener("DOMContentLoaded", function () {
                 align: "center"
             },
             borderWidth: 2,
-            shadow: false
+            shadow: false,
+            chosen: {
+                node: function (values) {
+                    values.borderWidth = 3;
+                    values.shadow = true;
+                }
+            }
         },
 
         groups: {
@@ -117,7 +130,9 @@ document.addEventListener("DOMContentLoaded", function () {
         edges: {
             smooth: {
                 enabled: true,
-                type: "continuous"
+                type: isAggregated ? "cubicBezier" : "continuous",
+                forceDirection: isAggregated ? "horizontal" : "none",
+                roundness: isAggregated ? 0.35 : 0.5
             },
             color: {
                 color: "#94a3b8",
@@ -132,6 +147,13 @@ document.addEventListener("DOMContentLoaded", function () {
             },
             font: {
                 size: 0
+            },
+            width: isAggregated ? 2 : 1.6,
+            hoverWidth: 2.8,
+            selectionWidth: 3,
+            scaling: {
+                min: 1,
+                max: 5
             }
         }
     };
@@ -146,21 +168,134 @@ document.addEventListener("DOMContentLoaded", function () {
     );
 
     addGraphControls(graphContainer, network);
+    bindGraphHoverState(graphContainer, network);
+    bindGraphDetails(graphContainer, network, nodes, edges);
 
     setTimeout(function () {
         network.fit({
-            animation: false
-        });
-
-        network.moveTo({
-            position: {
-                x: 0,
-                y: 0
-            },
-            scale: 0.75
+            animation: {
+                duration: 220,
+                easingFunction: "easeInOutQuad"
+            }
         });
     }, 200);
 });
+
+function prepareGraphItems(items) {
+    return items.map(function (item) {
+        return {
+            ...item,
+            label: createBoundedGraphLabel(item),
+            title: createTooltipElement(item.details, item.title)
+        };
+    });
+}
+
+function createBoundedGraphLabel(item) {
+    if (!item.label) {
+        return item.label;
+    }
+
+    const maxLineLength = item.group === "main" ? 21 : 19;
+    const maxNameLines = item.group === "contract" || item.group === "closed_contract" ? 2 : 3;
+    const lines = String(item.label).split("\n");
+    const innLine = lines.find(function (line) {
+        return line.trim().toUpperCase().startsWith("ИНН ");
+    });
+    const nameText = lines.filter(function (line) {
+        return line !== innLine;
+    }).join(" ");
+    const nameLines = wrapGraphLabelText(nameText, maxLineLength, maxNameLines);
+
+    if (innLine) {
+        nameLines.push(innLine.trim());
+    }
+
+    return nameLines.join("\n");
+}
+
+function wrapGraphLabelText(text, maxLineLength, maxLines) {
+    const normalized = String(text || "").replace(/\s+/g, " ").trim();
+
+    if (!normalized) {
+        return [];
+    }
+
+    const words = normalized.split(" ");
+    const lines = [];
+    let currentLine = "";
+
+    words.forEach(function (word) {
+        const chunks = splitLongGraphWord(word, maxLineLength);
+
+        chunks.forEach(function (chunk) {
+            const nextLine = currentLine ? `${currentLine} ${chunk}` : chunk;
+
+            if (nextLine.length <= maxLineLength) {
+                currentLine = nextLine;
+                return;
+            }
+
+            if (currentLine) {
+                lines.push(currentLine);
+            }
+            currentLine = chunk;
+        });
+    });
+
+    if (currentLine) {
+        lines.push(currentLine);
+    }
+
+    if (lines.length <= maxLines) {
+        return lines;
+    }
+
+    const trimmed = lines.slice(0, maxLines);
+    trimmed[maxLines - 1] = withEllipsis(trimmed[maxLines - 1], maxLineLength);
+    return trimmed;
+}
+
+function splitLongGraphWord(word, maxLineLength) {
+    if (word.length <= maxLineLength) {
+        return [word];
+    }
+
+    const chunks = [];
+    for (let index = 0; index < word.length; index += maxLineLength) {
+        chunks.push(word.slice(index, index + maxLineLength));
+    }
+    return chunks;
+}
+
+function withEllipsis(value, maxLineLength) {
+    if (value.length <= maxLineLength - 3) {
+        return `${value}...`;
+    }
+    return `${value.slice(0, maxLineLength - 3)}...`;
+}
+
+function createTooltipElement(details, fallbackText) {
+    const tooltip = document.createElement("div");
+    tooltip.className = "graph-tooltip-content";
+
+    if (!details) {
+        tooltip.textContent = fallbackText || "";
+        return tooltip;
+    }
+
+    const heading = document.createElement("strong");
+    heading.textContent = details.heading || "Детали";
+    tooltip.appendChild(heading);
+
+    (details.items || []).slice(0, 5).forEach(function (item) {
+        const row = document.createElement("span");
+        row.textContent = `${item.label}: ${item.value}`;
+        tooltip.appendChild(row);
+    });
+
+    return tooltip;
+}
 
 function addGraphControls(graphContainer, network) {
     const controls = document.createElement("div");
@@ -168,7 +303,7 @@ function addGraphControls(graphContainer, network) {
 
     const zoomInButton = createGraphControlButton("+", "Увеличить масштаб");
     const zoomOutButton = createGraphControlButton("-", "Уменьшить масштаб");
-    const resetButton = createGraphControlButton("⤢", "Показать весь граф");
+    const resetButton = createGraphControlButton("Fit", "Показать весь граф");
 
     zoomInButton.addEventListener("click", function () {
         zoomGraph(network, 1.2);
@@ -189,6 +324,116 @@ function addGraphControls(graphContainer, network) {
 
     controls.append(zoomInButton, zoomOutButton, resetButton);
     graphContainer.appendChild(controls);
+}
+
+function bindGraphDetails(graphContainer, network, nodes, edges) {
+    const panel = document.createElement("aside");
+    panel.className = "graph-details-panel";
+    graphContainer.insertAdjacentElement("afterend", panel);
+
+    renderGraphDetails(panel, null);
+
+    network.on("select", function (params) {
+        if (params.nodes.length) {
+            renderGraphDetails(panel, nodes.get(params.nodes[0]), "node");
+            return;
+        }
+
+        if (params.edges.length) {
+            renderGraphDetails(panel, edges.get(params.edges[0]), "edge");
+            return;
+        }
+
+        renderGraphDetails(panel, null);
+    });
+
+    network.on("click", function (params) {
+        if (!params.nodes.length && !params.edges.length) {
+            renderGraphDetails(panel, null);
+        }
+    });
+}
+
+function renderGraphDetails(panel, item, type) {
+    panel.replaceChildren();
+
+    if (!item || !item.details) {
+        const title = document.createElement("h3");
+        title.textContent = "Детали графа";
+
+        const text = document.createElement("p");
+        text.textContent = "Выберите компанию, закупку или стрелку на графе, чтобы увидеть подробную информацию в удобном виде.";
+
+        panel.append(title, text);
+        return;
+    }
+
+    const badge = document.createElement("span");
+    badge.className = "graph-details-badge";
+    badge.textContent = getGraphDetailsBadge(item.details.kind, type);
+
+    const title = document.createElement("h3");
+    title.textContent = item.details.heading || "Детали";
+
+    const list = document.createElement("dl");
+    list.className = "graph-details-list";
+
+    (item.details.items || []).forEach(function (detail) {
+        const term = document.createElement("dt");
+        term.textContent = detail.label;
+
+        const description = document.createElement("dd");
+        description.textContent = detail.value;
+
+        list.append(term, description);
+    });
+
+    panel.append(badge, title, list);
+}
+
+function getGraphDetailsBadge(kind, type) {
+    if (kind === "aggregate") {
+        return "Агрегированная связь";
+    }
+    if (kind === "edge" || type === "edge") {
+        return "Связь";
+    }
+    if (kind === "contract") {
+        return "Закупка / контракт";
+    }
+    if (kind === "closed") {
+        return "Закрытая закупка";
+    }
+    if (kind === "company") {
+        return "Центральная компания";
+    }
+    return "Участник";
+}
+
+function bindGraphHoverState(graphContainer, network) {
+    network.on("hoverNode", function () {
+        graphContainer.classList.add("graph-is-hovering");
+    });
+
+    network.on("hoverEdge", function () {
+        graphContainer.classList.add("graph-is-hovering");
+    });
+
+    network.on("blurNode", function () {
+        graphContainer.classList.remove("graph-is-hovering");
+    });
+
+    network.on("blurEdge", function () {
+        graphContainer.classList.remove("graph-is-hovering");
+    });
+
+    network.on("dragStart", function () {
+        graphContainer.classList.add("graph-is-dragging");
+    });
+
+    network.on("dragEnd", function () {
+        graphContainer.classList.remove("graph-is-dragging");
+    });
 }
 
 function createGraphControlButton(label, title) {

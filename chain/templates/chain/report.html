@@ -1,5 +1,5 @@
 {% extends 'chain/base.html' %}
-{% load static %}
+{% load static chain_format %}
 {% block title %}HTML-отчёт — {{ company.name }}{% endblock %}
 
 {% block content %}
@@ -41,10 +41,24 @@
 
 <section class="card">
     <h2>Реквизиты</h2>
-    <p><b>Название:</b> {{ company.name }}</p>
-    <p><b>ИНН:</b> {{ company.inn }}</p>
-    <p><b>КПП:</b> {{ company.kpp|default:'—' }}</p>
-    <p><b>ОГРН:</b> {{ company.ogrn|default:'—' }}</p>
+    <div class="company-meta-grid">
+        <div>
+            <span>Название</span>
+            <strong>{{ company.name }}</strong>
+        </div>
+        <div>
+            <span>ИНН</span>
+            <strong>{{ company.inn|default:'ИНН отсутствует' }}</strong>
+        </div>
+        <div>
+            <span>КПП</span>
+            <strong>{{ company.kpp|default:'не указан' }}</strong>
+        </div>
+        <div>
+            <span>ОГРН</span>
+            <strong>{{ company.ogrn|default:'не указан' }}</strong>
+        </div>
+    </div>
 </section>
 
 <section class="card">
@@ -56,23 +70,42 @@
 <section class="card">
     <h2>Частота участия в закупках и контрактах</h2>
     {% if stats %}
-        <ol>
+        <div class="table-wrap">
+            <table class="stats-table">
+                <thead>
+                <tr>
+                    <th>Участник</th>
+                    <th>ИНН</th>
+                    <th>Роль</th>
+                    <th>Кол-во участий</th>
+                    <th>Сумма</th>
+                </tr>
+                </thead>
+                <tbody>
             {% for item in stats %}
-                <li>{{ item.display_name }} — участий: {{ item.count }}, сумма {{ item.total_price|floatformat:2 }}</li>
+                <tr>
+                    <td class="{% if item.is_closed %}closed-label{% endif %}">{{ item.display_name }}</td>
+                    <td>{{ item.inn|default:'ИНН отсутствует' }}</td>
+                    <td>{{ item.role }}</td>
+                    <td class="number-cell">{{ item.count }}</td>
+                    <td class="amount-cell">{{ item.total_price|money }}</td>
+                </tr>
             {% endfor %}
-        </ol>
+                </tbody>
+            </table>
+        </div>
     {% else %}
         <p>Нет данных.</p>
     {% endif %}
 </section>
 
-<section class="card">
+<section class="card" id="graph-section">
     <h2>Граф цепочки</h2>
     {% if contracts %}
         <div id="graph"></div>
         {{ graph_data|json_script:'graph-data' }}
         <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
-        <script src="{% static 'chain/graph.js' %}?v=3"></script>
+        <script src="{% static 'chain/graph.js' %}?v=6"></script>
     {% else %}
         <p>Нет данных для построения графа.</p>
     {% endif %}

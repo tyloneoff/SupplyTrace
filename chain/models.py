@@ -18,6 +18,7 @@ class Company(models.Model):
     name = models.CharField('Название', max_length=500)
     kpp = models.CharField('КПП', max_length=20, blank=True)
     ogrn = models.CharField('ОГРН', max_length=30, blank=True)
+    created_at = models.DateTimeField('Дата создания', auto_now_add=True, null=True, db_index=True)
     last_synced_at = models.DateTimeField('Последнее обновление', null=True, blank=True, db_index=True)
     last_sync_status = models.CharField(
         'Статус последнего обновления',
@@ -102,12 +103,20 @@ class Contract(models.Model):
             return 'zakupki.gov.ru'
         if self.source_file.startswith('zakupki.mos.ru'):
             return 'zakupki.mos.ru'
+        if self.source_file.startswith('tektorg.ru'):
+            return 'tektorg.ru'
+        if self.source_file.startswith('sberbank-ast.ru'):
+            return 'sberbank-ast.ru'
         if self.source_file:
             return self.source_file
         if 'zakupki.gov.ru' in self.purchase_url:
             return 'zakupki.gov.ru'
         if 'zakupki.mos.ru' in self.purchase_url:
             return 'zakupki.mos.ru'
+        if 'tektorg.ru' in self.purchase_url:
+            return 'tektorg.ru'
+        if 'sberbank-ast.ru' in self.purchase_url:
+            return 'sberbank-ast.ru'
         return ''
 
 

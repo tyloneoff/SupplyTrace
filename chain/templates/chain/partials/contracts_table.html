@@ -1,60 +1,83 @@
+{% load chain_format %}
+
 {% if contracts %}
+<div class="column-settings" data-column-controls="contracts">
+    <h3>Настройка колонок</h3>
+    <div class="column-settings-grid">
+        <label><input type="checkbox" data-column-toggle="number" checked> Номер / идентификатор</label>
+        <label><input type="checkbox" data-column-toggle="date" checked> Дата</label>
+        <label><input type="checkbox" data-column-toggle="execution-date" checked> Дата исполнения</label>
+        <label><input type="checkbox" data-column-toggle="title" checked> Предмет</label>
+        <label><input type="checkbox" data-column-toggle="price" checked> Сумма</label>
+        <label><input type="checkbox" data-column-toggle="customer" checked> Заказчик</label>
+        <label><input type="checkbox" data-column-toggle="customer-inn" checked> ИНН заказчика</label>
+        <label><input type="checkbox" data-column-toggle="supplier" checked> Поставщик / победитель</label>
+        <label><input type="checkbox" data-column-toggle="supplier-inn" checked> ИНН поставщика</label>
+        <label><input type="checkbox" data-column-toggle="status" checked> Статус</label>
+        <label><input type="checkbox" data-column-toggle="source" checked> Источник</label>
+    </div>
+</div>
+
+<p class="column-empty-message" data-column-empty-message="contracts" hidden>
+    Не выбрана ни одна колонка. Отметьте хотя бы один пункт в настройках, чтобы показать таблицу.
+</p>
+
 <div class="table-wrap">
-    <table class="contracts-table">
+    <table class="contracts-table" data-column-table="contracts">
         <thead>
         <tr>
-            <th>Номер / идентификатор</th>
-            <th>Дата</th>
-            <th>Дата исполнения</th>
-            <th>Предмет</th>
-            <th>Сумма</th>
-            <th>Заказчик</th>
-            <th>ИНН заказчика</th>
-            <th>Поставщик / победитель</th>
-            <th>ИНН поставщика</th>
-            <th>Статус</th>
-            <th>Источник / ссылка</th>
+            <th data-column="number">Номер / идентификатор</th>
+            <th data-column="date">Дата</th>
+            <th data-column="execution-date">Дата исполнения</th>
+            <th data-column="title">Предмет</th>
+            <th data-column="price">Сумма</th>
+            <th data-column="customer">Заказчик</th>
+            <th data-column="customer-inn">ИНН заказчика</th>
+            <th data-column="supplier">Поставщик / победитель</th>
+            <th data-column="supplier-inn">ИНН поставщика</th>
+            <th data-column="status">Статус</th>
+            <th data-column="source">Источник</th>
         </tr>
         </thead>
         <tbody>
         {% for contract in contracts %}
-            <tr>
-                <td>{{ contract.number }}</td>
-                <td class="date-cell">{{ contract.date|date:'d.m.Y'|default:'—' }}</td>
-                <td class="date-cell">{{ contract.execution_date|date:'d.m.Y'|default:'—' }}</td>
-                <td>{{ contract.title|default:'—' }}</td>
-                <td class="amount-cell">{% if contract.price %}{{ contract.price|floatformat:2 }}{% else %}—{% endif %}</td>
-                <td>{{ contract.customer.name }}</td>
-                <td>{{ contract.customer.inn }}</td>
-                <td>
+            <tr class="{% if contract.is_closed %}row-closed{% endif %}">
+                <td data-column="number"><span class="mono-cell">{{ contract.number }}</span></td>
+                <td class="date-cell" data-column="date">{{ contract.date|date:'d.m.Y'|default:'дата не указана' }}</td>
+                <td class="date-cell" data-column="execution-date">{{ contract.execution_date|date:'d.m.Y'|default:'дата не указана' }}</td>
+                <td class="title-cell" data-column="title">{{ contract.title|default:'предмет не указан' }}</td>
+                <td class="amount-cell" data-column="price">{{ contract.price|money }}</td>
+                <td class="company-name-cell" data-column="customer">{{ contract.customer.name|default:'Заказчик не указан' }}</td>
+                <td data-column="customer-inn">{{ contract.customer.inn|default:'ИНН отсутствует' }}</td>
+                <td class="company-name-cell" data-column="supplier">
                     {% if contract.has_known_supplier %}
                         {{ contract.supplier_display_name }}
                     {% else %}
                         <span class="closed-label">{{ contract.supplier_display_name }}</span>
                     {% endif %}
                 </td>
-                <td>
+                <td data-column="supplier-inn">
                     {% if contract.has_known_supplier %}
                         {{ contract.supplier_inn_display }}
                     {% else %}
                         <span class="closed-label">{{ contract.supplier_inn_display }}</span>
                     {% endif %}
                 </td>
-                <td class="status-cell">
+                <td class="status-cell" data-column="status">
                     {% if contract.is_closed %}
-                        <span class="closed-label">{{ contract.procurement_status_display }}</span>
+                        <span class="status-badge status-badge-closed">{{ contract.procurement_status_display }}</span>
                     {% else %}
-                        {{ contract.procurement_status_display }}
+                        <span class="status-badge status-badge-open">{{ contract.procurement_status_display }}</span>
                     {% endif %}
                 </td>
-                <td class="source-link-cell">
+                <td class="source-link-cell" data-column="source">
                     {% if contract.source_display_name %}
-                        {{ contract.source_display_name }}<br>
+                        <span class="source-name">{{ contract.source_display_name }}</span>
                     {% endif %}
                     {% if contract.purchase_url %}
-                        <a href="{{ contract.purchase_url }}" target="_blank">Открыть источник</a>
+                        <a class="source-button" href="{{ contract.purchase_url }}" target="_blank" rel="noopener noreferrer">Открыть источник</a>
                     {% else %}
-                        —
+                        <span class="muted-text">ссылка отсутствует</span>
                     {% endif %}
                 </td>
             </tr>

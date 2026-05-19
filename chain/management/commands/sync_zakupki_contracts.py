@@ -2,6 +2,7 @@ from django.core.management.base import BaseCommand, CommandError
 
 from chain.models import Company
 from chain.services.company_lookup import get_or_create_company_by_inn
+from chain.services.local_retention import purge_expired_local_data
 from chain.services.public_sources import record_sync_result
 from chain.services.zakupki import digits_only, sync_contracts_by_inn
 
@@ -19,6 +20,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        purge_expired_local_data()
         inn = digits_only(options['inn'])
 
         if len(inn) not in (10, 12):
